@@ -1,0 +1,58 @@
+HELP.md
+
+### Java ###
+*.class
+*.jar
+*.war
+*.ear
+*.log
+
+### Gradle ###
+build/
+.gradle/
+# The wrapper jar must be committed, otherwise ./gradlew cannot bootstrap
+# on a fresh clone - it has to override the *.jar rule above.
+!gradle/wrapper/gradle-wrapper.jar
+
+### STS / Eclipse ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+
+### VS Code ###
+.vscode/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### OS ###
+.DS_Store
+Thumbs.db
+
+### Application runtime data ###
+data/
+logs/
+*.db
+*.mv.db
+*.trace.db
+*.lock.db
+
+### Environment specific ###
+.env
+application-local.yml
+application-local.properties
