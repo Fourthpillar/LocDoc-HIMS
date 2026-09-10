@@ -85,13 +85,16 @@ and accept `?page=&size=&search=` (search is optional, case-insensitive, matches
 - `PUT /pharmacy/suppliers/{id}`
 - `PATCH /pharmacy/suppliers/{id}/deactivate`
 
-### Patients - `/pharmacy/patients` (right: `PHARMACY_PATIENT_MANAGE`)
+### Patients - `/outpatient/patients` (right: `OUTPATIENT_PATIENT_MANAGE`)
 
-- `GET /pharmacy/patients?page=&size=&search=`
-- `GET /pharmacy/patients/{id}`
-- `POST /pharmacy/patients` — body: `{fullName, phone, gender, dateOfBirth, address}`. `mrn` is server-generated (`PT-{year}-{seq}`).
-- `PUT /pharmacy/patients/{id}`
-- `PATCH /pharmacy/patients/{id}/deactivate`
+Lives in the `outpatient` module, not `pharmacy` - `SalesService` (pharmacy) reads patient
+data only through outpatient's `PatientService` bean, never its entity/repository directly.
+
+- `GET /outpatient/patients?page=&size=&search=`
+- `GET /outpatient/patients/{id}`
+- `POST /outpatient/patients` — body: `{fullName, phone, gender, dateOfBirth, address}`. `mrn` is server-generated (`PT-{year}-{seq}`).
+- `PUT /outpatient/patients/{id}`
+- `PATCH /outpatient/patients/{id}/deactivate`
 
 ### Inventory - `/pharmacy/inventory` (right: `PHARMACY_INVENTORY_READ`)
 

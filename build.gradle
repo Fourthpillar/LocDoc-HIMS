@@ -1,77 +1,64 @@
 plugins {
-    id 'java'
-    id 'org.springframework.boot' version '3.3.4'
-    id 'io.spring.dependency-management' version '1.1.6'
+    id 'org.springframework.boot' version '3.3.4' apply false
+    id 'io.spring.dependency-management' version '1.1.6' apply false
 }
 
-group = 'com.lockdoc'
-version = '0.0.1-SNAPSHOT'
-description = 'LockDoc Spring Boot Application - JWT secured REST API with H2 file storage'
+description = 'LockDoc Spring Boot Application - JWT secured REST API with H2 file storage, split into common/pharmacy/outpatient/app Gradle modules'
 
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+allprojects {
+    group = 'com.lockdoc'
+    version = '0.0.1-SNAPSHOT'
+
+    repositories {
+        mavenCentral()
     }
-}
-
-configurations {
-    compileOnly {
-        extendsFrom annotationProcessor
-    }
-}
-
-repositories {
-    mavenCentral()
 }
 
 ext {
     jjwtVersion = '0.12.6'
 }
 
-dependencies {
-    // Web
-    implementation 'org.springframework.boot:spring-boot-starter-web'
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'io.spring.dependency-management'
 
-    // Security
-    implementation 'org.springframework.boot:spring-boot-starter-security'
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(17)
+        }
+    }
 
-    // JPA / Persistence
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    dependencyManagement {
+        imports {
+            mavenBom "org.springframework.boot:spring-boot-dependencies:3.3.4"
+        }
+    }
 
-    // Actuator (health check)
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    configurations {
+        compileOnly {
+            extendsFrom annotationProcessor
+        }
+    }
 
-    // Bean Validation
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    dependencies {
+        compileOnly 'org.projectlombok:lombok'
+        annotationProcessor 'org.projectlombok:lombok'
+        testCompileOnly 'org.projectlombok:lombok'
+        testAnnotationProcessor 'org.projectlombok:lombok'
 
-    // H2 file-based database
-    runtimeOnly 'com.h2database:h2'
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    }
 
-    // Flyway - versioned DB migrations (H2 support ships inside flyway-core;
-    // there is no separate flyway-database-h2 artifact)
-    implementation 'org.flywaydb:flyway-core'
+    tasks.named('test') {
+        useJUnitPlatform()
+    }
 
-    // JWT
-    implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
-    runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
-    runtimeOnly "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
-
-    // Lombok
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
-    testCompileOnly 'org.projectlombok:lombok'
-    testAnnotationProcessor 'org.projectlombok:lombok'
-
-    // Test
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.springframework.security:spring-security-test'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-}
-
-tasks.named('test') {
-    useJUnitPlatform()
-}
-
-bootJar {
-    archiveFileName = 'lockdoc-app.jar'
+    // Only the 'app' module has the Boot Gradle plugin applied, which is what
+    // normally adds -parameters automatically - without it, @RequestParam name
+    // binding (e.g. "int page" with no explicit name) breaks at runtime in the
+    // other modules' controllers.
+    tasks.withType(JavaCompile).configureEach {
+        options.compilerArgs << '-parameters'
+    }
 }
