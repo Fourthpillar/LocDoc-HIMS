@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LockDoc DB Script Overview</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 32px; color: #1f2937; background: #f8fafc; }
+    h1, h2 { color: #111827; }
+    table { border-collapse: collapse; width: 100%; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    th, td { border: 1px solid #dbe3ee; padding: 10px 12px; text-align: left; vertical-align: top; }
+    th { background: #e2e8f0; }
+    code { background: #eef2ff; padding: 2px 6px; border-radius: 4px; }
+    .note { margin-top: 12px; padding: 10px 12px; background: #fef3c7; border-left: 4px solid #f59e0b; }
+    .section { margin-top: 28px; }
+  </style>
+</head>
+<body>
+  <h1>LockDoc Database Script Catalog</h1>
+
+  <p>This project keeps Flyway SQL in module-owned folders. The app module contains no SQL scripts; it only contains this overview document.</p>
+
+  <div class="note">
+    Flyway locations: <code>classpath:db/scripts/common,classpath:db/scripts/outpatient,classpath:db/scripts/pharmacy</code>
+  </div>
+
+  <div class="note">
+    <strong>Versioning convention:</strong> each module owns a reserved block of 100 version
+    numbers, so new modules or new scripts within a module never collide across the combined
+    Flyway location list. Leave gaps within a block for future scripts - don't compact them.
+    <table style="margin-top: 8px;">
+      <thead>
+        <tr><th>Block</th><th>Module</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>V100-V199</td><td>common</td></tr>
+        <tr><td>V200-V299</td><td>pharmacy</td></tr>
+        <tr><td>V300-V399</td><td>outpatient</td></tr>
+        <tr><td>V400-V499</td><td>(next module)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>1) Common module (V100-V199)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Version</th>
+          <th>File</th>
+          <th>Type</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>V100</td>
+          <td><code>common/src/main/resources/db/scripts/common/V100__create_tables.sql</code></td>
+          <td>DDL</td>
+          <td>Creates <code>users</code>, <code>roles</code>, <code>rights</code>, <code>user_roles</code>, and <code>role_rights</code>.</td>
+        </tr>
+        <tr>
+          <td>V101</td>
+          <td><code>common/src/main/resources/db/scripts/common/V101__seed_default_data.sql</code></td>
+          <td>Seed</td>
+          <td>Seeds baseline rights, the <code>SUPER_ADMIN</code> role, and the default super-admin user <code>FP_USER</code>.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>2) Pharmacy module (V200-V299)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Version</th>
+          <th>File</th>
+          <th>Type</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>V200</td>
+          <td><code>pharmacy/src/main/resources/db/scripts/pharmacy/V200__create_pharmacy_tables.sql</code></td>
+          <td>DDL</td>
+          <td>Creates the pharmacy schema: suppliers, medicines, medicine batches, document sequences, purchase orders, purchases, sales, sales returns, and stock ledger tables.</td>
+        </tr>
+        <tr>
+          <td>V201</td>
+          <td><code>pharmacy/src/main/resources/db/scripts/pharmacy/V201__seed_pharmacy_rights.sql</code></td>
+          <td>Seed</td>
+          <td>Seeds the <code>PHARMACY_*</code> rights, maps them to <code>SUPER_ADMIN</code>, and adds a <code>PHARMACIST</code> role mapped to all of them.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>3) Outpatient module (V300-V399)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Version</th>
+          <th>File</th>
+          <th>Type</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>V300</td>
+          <td><code>outpatient/src/main/resources/db/scripts/outpatient/V300__create_patient_tables.sql</code></td>
+          <td>DDL</td>
+          <td>Creates the <code>patients</code> table. This is kept in outpatient rather than pharmacy.</td>
+        </tr>
+        <tr>
+          <td>V301</td>
+          <td><code>outpatient/src/main/resources/db/scripts/outpatient/V301__seed_outpatient_rights.sql</code></td>
+          <td>Seed</td>
+          <td>Seeds <code>OUTPATIENT_PATIENT_MANAGE</code> and maps it to <code>SUPER_ADMIN</code>.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Ownership rule</h2>
+    <p>Only the owning module carries its DDL. The app module keeps no SQL files; it only keeps the documentation file so the SQL catalog remains visible without polluting the application resources folder.</p>
+  </div>
+</body>
+</html>

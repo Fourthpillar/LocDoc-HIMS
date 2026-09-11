@@ -6,7 +6,7 @@ Guidance for Claude (or any AI assistant) working in this repository.
 
 LockDoc App is a Spring Boot 3 (Java 17) REST API:
 
-- **Build tool**: Gradle (Groovy DSL, `build.gradle` / `settings.gradle`) — not Maven. Use `gradle bootRun`, `gradle build`, `gradle test`.
+- **Build tool**: Gradle (Groovy DSL), **multi-module**: `common`, `pharmacy`, `outpatient`, `app` (see "Module structure" below) — not Maven. `gradle build` / `gradle test` at the root build/test all four modules; run the app with `gradle :app:bootRun` (only `app` has the Boot plugin applied, so plain `gradle bootRun` no longer works).
 - **Config format**: `application.properties` — not YAML. If you add config, use dotted-key properties syntax (e.g. `app.cors.allowed-origins[0]=...` for list entries), and keep it consistent with the existing file rather than introducing a `.yml` alongside it.
 - **Database**: H2, file-based (`jdbc:h2:file:./data/lockdocdb`) — never switch this to in-memory (`jdbc:h2:mem:`) without being asked; the whole point is durability across restarts.
 - **Schema management**: Flyway only. Do not set `spring.jpa.hibernate.ddl-auto` to `update` or `create`. It must stay `validate` — the schema is owned by the versioned SQL scripts.
@@ -16,32 +16,57 @@ LockDoc App is a Spring Boot 3 (Java 17) REST API:
 
 ## Database change process (IMPORTANT)
 
-All schema and seed-data changes MUST go through a new versioned Flyway script in:
+All schema and seed-data changes MUST go through a new versioned Flyway script in the owning module folder. The app module is reserved for documentation only; do not keep SQL files there.
 
 ```
-src/main/resources/db/scripts/
+common/src/main/resources/db/scripts/common/
+outpatient/src/main/resources/db/scripts/outpatient/
+pharmacy/src/main/resources/db/scripts/pharmacy/
 ```
 
 Rules:
 1. **Never edit a script that has already been committed/applied.** Flyway checksums applied migrations; editing one breaks `validate-on-migrate` for anyone who already ran it.
-2. Create a new file following the pattern `V{next_number}__{snake_case_description}.sql`, e.g. `V3__add_user_last_login_column.sql`.
-3. This project intentionally keeps all table DDL in one script (`V1`) and all default-data seeding in another (`V2`) — don't fragment future changes back into one-file-per-table unless asked. A genuinely new concern (e.g. a new feature's tables, or a later data migration) still deserves its own new versioned file rather than editing V1/V2.
+2. **Versioning is per-module blocks of 100**, not one global counter — see the table below. Create a new file following the pattern `V{next_number_in_your_module's_block}__{snake_case_description}.sql`, e.g. the next pharmacy script after `V201` is `V202__...sql`. This keeps modules from colliding on version numbers as they're developed independently, since Flyway's combined `spring.flyway.locations` list still requires every version to be globally unique. Leave gaps inside a block for future scripts — don't compact/renumber to close them.
+3. Keep module-owned DDL in the owning module: `common` for shared auth/user schema, `outpatient` for patients, `pharmacy` for pharmacy tables. Do not leave seed or data-fix scripts in the app module.
 4. Update the corresponding JPA entity in `entity/` to match, and bump any relevant repository/service code.
 5. Document the new version in `CHANGELOG.md` under "Unreleased" or a new version heading.
 6. Never write DDL directly against the running H2 file — always go through a script so the change is reproducible.
+7. Keep user/role/right bootstrapping, including the default `FP_USER`, in `common` so that shared auth security remains together.
+
+Version block assignment (a new module claims the next unused block; add a row here when one is added):
+
+| Block | Module |
+|---|---|
+| V100-V199 | `common` |
+| V200-V299 | `pharmacy` |
+| V300-V399 | `outpatient` |
+| V400-V499 | *(next module)* |
 
 Current version ledger (do not renumber existing files):
 
-| Version | File | Purpose |
+| Version | Location | Purpose |
 |---|---|---|
-| V1 | create_tables | users, roles, rights + user_roles/role_rights join tables (all DDL) |
-| V2 | seed_default_data | seeds baseline rights, SUPER_ADMIN role (mapped to all rights), and default super-admin user `FP_USER` |
-| V3 | create_pharmacy_tables | pharmacy module DDL - patients, suppliers, medicines, medicine_batches, document_sequences, purchase_orders(+items), purchases/GRN(+items), sales_invoices(+items), sales_returns(+items), stock_ledger_entries |
-| V4 | seed_pharmacy_rights | seeds the 10 `PHARMACY_*` rights, maps them to `SUPER_ADMIN`, and adds a new `PHARMACIST` role mapped to all of them |
-| V5 | seed_demo_suppliers_and_medicines | seeds 20 suppliers and 222 medicines transcribed from a real legacy "Medicine Stock Report" |
-| V6 | seed_demo_medicine_batches_and_ledger | seeds demo medicine batches and stock ledger entries (opening-balance load) |
-| V7 | enhance_supplier_contact_and_purchase_dues | adds supplier master-data columns (mobile2, landline, city/state/pincode, tin_no, website, supplier_type, drug_license_no); adds `amount_paid`/`balance_due`/`due_date` to `purchases` (GRN payables tracking, mirroring `sales_invoices`); adds `round_off_amount` to `sales_invoices` |
-| V8 | fix_medicine_category_typos | corrects seed-data typos transcribed from the source report (`OINTEMENT`→`OINTMENT`, `SWEB`→`SWAB`, bandage/dressing items miscategorized as `GAUGE`→`GAUZE`) |
+| V100 | `common/src/main/resources/db/scripts/common` | users, roles, rights + user_roles/role_rights join tables (shared core DDL) |
+| V101 | `common/src/main/resources/db/scripts/common` | seeds baseline rights, `SUPER_ADMIN` role, and default super-admin user `FP_USER` |
+| V200 | `pharmacy/src/main/resources/db/scripts/pharmacy` | pharmacy module DDL - suppliers, medicines, medicine_batches, document_sequences, purchase_orders(+items), purchases/GRN(+items), sales_invoices(+items), sales_returns(+items), stock_ledger_entries |
+| V201 | `pharmacy/src/main/resources/db/scripts/pharmacy` | seeds `PHARMACY_*` rights, maps them to `SUPER_ADMIN`, adds a `PHARMACIST` role |
+| V300 | `outpatient/src/main/resources/db/scripts/outpatient` | creates the `patients` table for the outpatient module |
+| V301 | `outpatient/src/main/resources/db/scripts/outpatient` | seeds `OUTPATIENT_PATIENT_MANAGE` and maps it to `SUPER_ADMIN` |
+
+`app/src/main/resources/db-scripts-overview.html` summarises the complete migration catalog across all modules; no SQL migrations remain under `app/src/main/resources`.
+
+## Module structure
+
+The codebase is a multi-module Gradle build, each module its own Gradle project under `com.lockdoc.<module>`:
+
+| Module | Contains | Depends on |
+|---|---|---|
+| `common` | Auth/JWT/security config, `User`/`Role`/`Right`, generic exceptions (`ResourceNotFoundException`, `DuplicateResourceException`, `GlobalExceptionHandler`, `ApiErrorResponseFactory`), `PageResponse`, document-numbering (`DocumentNumberService`/`DocumentSequence`) | — |
+| `outpatient` | Patients (`/outpatient/patients`) | `common` |
+| `pharmacy` | Suppliers, medicines/batches, purchase orders, purchases/GRN, sales, sales returns, inventory, reports, plus the two pharmacy-specific exceptions (`InsufficientStockException`, `InvalidDocumentStateException`) and their own `PharmacyExceptionHandler` | `common`, `outpatient` |
+| `app` | `LockDocApplication` (main class, with explicit `@ComponentScan`/`@EntityScan`/`@EnableJpaRepositories(basePackages = "com.lockdoc")` since beans now span multiple modules), `application.properties`, Flyway scripts, tests | `common`, `pharmacy`, `outpatient` |
+
+**Rule**: `pharmacy` and `outpatient` never reach into each other's entities/repositories directly — the only link between them is `pharmacy`'s `SalesService` calling `outpatient`'s `PatientService` **bean** (e.g. `patientService.get(id)`) to validate a patient or resolve a name. `SalesInvoice` stores a plain `patientId` (no JPA relation to `Patient`). `common` is a shared kernel both feature modules depend on directly — that one *is* meant to be reached into like any other library, no service indirection needed. This retires the old "pharmacy sub-package exception" below this table used to document: each former `*.pharmacy` sub-package is now its own Gradle module, so there's nothing left to special-case.
 
 ## Security conventions
 
@@ -63,23 +88,13 @@ Current version ledger (do not renumber existing files):
 - Constructor injection only (via `@RequiredArgsConstructor` or explicit constructors) — no field `@Autowired`.
 - DTOs live in `dto/`, never expose JPA entities directly from controllers for anything beyond the current simple `/users/me` example.
 - Keep controllers thin; business logic belongs in `service/`.
-- Entity ↔ DTO mapping is 100% manual - no MapStruct/ModelMapper. Response DTOs carry a small static `toResponse(Entity e)` mapper method (see any class under `dto/pharmacy/`).
+- Entity ↔ DTO mapping is 100% manual - no MapStruct/ModelMapper. Response DTOs carry a small static `toResponse(Entity e)` mapper method (see any class under `pharmacy/src/.../dto/`).
 - Services are concrete `@Service` classes, one per sub-domain - not interface+impl pairs.
 - Repositories are plain `interface X extends JpaRepository<Entity, Long>` with derived query methods or a small `@Query`.
 
-### Pharmacy module package exception (deliberate)
-
-The `pharmacy` module (patients, suppliers, medicines/batches, purchase orders, purchases/GRN, sales, sales returns, inventory, reports - 14 entities) is large enough that it is organized as a **sub-package under each layer**, as a deliberate, documented exception to the rest of the codebase's flat `controller/service/repository/entity/dto` layout:
-
-```
-controller.pharmacy / service.pharmacy / repository.pharmacy / entity.pharmacy / dto.pharmacy
-```
-
-Do not flatten these back into the top-level packages, and do not start sub-packaging other (smaller) areas of the app just because this precedent exists - this is specifically because of the pharmacy module's size.
-
 ### Pagination convention
 
-List endpoints use `dto/PageResponse.java` (shared, top-level `dto` package, generic `<T>`: `content`, `page`, `size`, `totalElements`, `totalPages`). Controllers accept `@RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size` (and an optional `search`), build a `Pageable`, call a repository method returning `Page<Entity>`, and map with `PageResponse.of(page, EntityResponse::toResponse)`.
+List endpoints use `common`'s `dto/PageResponse.java` (generic `<T>`: `content`, `page`, `size`, `totalElements`, `totalPages`). Controllers accept `@RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size` (and an optional `search`), build a `Pageable`, call a repository method returning `Page<Entity>`, and map with `PageResponse.of(page, EntityResponse::toResponse)`.
 
 ### Method-level authorization (`@PreAuthorize`)
 
@@ -96,11 +111,11 @@ List endpoints use `dto/PageResponse.java` (shared, top-level `dto` package, gen
 - Don't hardcode the JWT secret elsewhere in code — always read from `JwtProperties`.
 - Don't bypass the excluded-urls mechanism with ad-hoc permit-all annotations scattered across controllers — keep the public allow-list centralized in `application.properties`. (`@PreAuthorize` for *authorization*, as used in the pharmacy module, is fine — see above; it is distinct from making an endpoint public.)
 - Don't remove or reuse a Flyway version number that has already shipped.
-- Don't flatten the `pharmacy` sub-packages back into the top-level layout, and don't copy that sub-packaging pattern into other small feature areas without a similar scale justification.
+- Don't have `pharmacy` and `outpatient` reach into each other's entities/repositories directly — cross that boundary only through the other module's `@Service` bean (see "Module structure" above).
 
 ## Exception classes
 
-Beyond the auth-related exceptions already handled in `GlobalExceptionHandler` (`BadCredentialsException`, `AuthenticationException`, validation, etc.), the pharmacy module added four reusable exception types in `exception/` (all simple `RuntimeException` subclasses with a message constructor, all handled in the same `GlobalExceptionHandler` - no new `@RestControllerAdvice` class):
+Beyond the auth-related exceptions already handled in `common`'s `GlobalExceptionHandler` (`BadCredentialsException`, `AuthenticationException`, validation, etc.), the pharmacy module added four reusable exception types (all simple `RuntimeException` subclasses with a message constructor). `ResourceNotFoundException`/`DuplicateResourceException` are generic enough to live in `common` and are handled by `GlobalExceptionHandler`; `InvalidDocumentStateException`/`InsufficientStockException` are pharmacy-domain-specific, so they live in `pharmacy` and are handled by that module's own `PharmacyExceptionHandler` (`@RestControllerAdvice`) - both handlers share the same error-body shape via `common`'s `ApiErrorResponseFactory`:
 
 | Exception | HTTP status | Used for |
 |---|---|---|

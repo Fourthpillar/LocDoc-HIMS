@@ -8,8 +8,9 @@ A Spring Boot 3 REST API backend with:
 - **User / Role / Right** model with a default super-admin user (`FP_USER`)
 - **Spring Boot Actuator** health check
 - **Size-based rolling file logs** via Logback
-- **Flyway** versioned SQL migration scripts (`src/main/resources/db/scripts`)
+- **Flyway** versioned SQL migration scripts split by ownership: `common/src/main/resources/db/scripts/common`, `outpatient/src/main/resources/db/scripts/outpatient`, and `pharmacy/src/main/resources/db/scripts/pharmacy` (`app/src/main/resources/db-scripts-overview.html` summarises the full catalog)
 - Application context path: `/lockdoc`, port: `7321`
+- Multi-module Gradle build: `common`, `pharmacy`, `outpatient`, `app` (see `CLAUDE.md` for the module structure)
 
 ---
 
@@ -25,18 +26,18 @@ A Spring Boot 3 REST API backend with:
 ## 2. Running the application
 
 ```bash
-gradle bootRun
+gradle :app:bootRun
 ```
 
 or build a jar and run it:
 
 ```bash
 gradle clean build
-java -jar build/libs/lockdoc-app.jar
+java -jar app/build/libs/lockdoc-app.jar
 ```
 
 On first startup:
-- Flyway runs the versioned scripts in `src/main/resources/db/scripts` (one script creates the tables, one seeds default data), creating the schema and default records.
+- Flyway runs the versioned scripts from the owning modules (`common`, `outpatient`, `pharmacy`) to create the schema and bootstrap the shared default records.
 - The H2 database file is created at `./data/lockdocdb.mv.db` (relative to the working directory).
 - Logs are written to `./logs/lockdoc-app.log`.
 
@@ -95,14 +96,26 @@ This path is included in the JWT excluded-urls list so monitoring tools can call
 
 ### DB versioned scripts
 
-Every DDL/DML change lives in `src/main/resources/db/scripts` as a Flyway-versioned SQL file:
+Flyway scripts are split by module ownership. There are no SQL files under `app/src/main/resources` other than the overview HTML document:
+
+Each module owns a reserved block of 100 version numbers, so scripts can be added to any
+module later without colliding with another module's versions:
 
 ```
-V1__create_tables.sql        -- users, roles, rights + join tables (all DDL)
-V2__seed_default_data.sql    -- default rights, SUPER_ADMIN role, FP_USER
+common/src/main/resources/db/scripts/common/        (V100-V199)
+  V100__create_tables.sql        -- users, roles, rights + join tables (core shared DDL)
+  V101__seed_default_data.sql    -- default rights, SUPER_ADMIN role, FP_USER
+
+pharmacy/src/main/resources/db/scripts/pharmacy/     (V200-V299)
+  V200__create_pharmacy_tables.sql  -- pharmacy DDL only
+  V201__seed_pharmacy_rights.sql    -- PHARMACY_* rights, SUPER_ADMIN mapping, PHARMACIST role
+
+outpatient/src/main/resources/db/scripts/outpatient/ (V300-V399)
+  V300__create_patient_tables.sql   -- patient table owned by outpatient
+  V301__seed_outpatient_rights.sql  -- OUTPATIENT_PATIENT_MANAGE, SUPER_ADMIN mapping
 ```
 
-Flyway applies these automatically on startup, in order, and tracks the applied version in the `flyway_schema_history` table. **Never edit an already-applied script** — add a new `V{n}__description.sql` file instead. See [CLAUDE.md](CLAUDE.md) for the convention.
+`app/src/main/resources/db-scripts-overview.html` documents the full script catalog and module ownership. Flyway applies these automatically on startup, in order, and tracks the applied version in the `flyway_schema_history` table. **Never edit an already-applied script** — add a new `V{next_number_in_your_module's_block}__description.sql` file instead. See [CLAUDE.md](CLAUDE.md) for the versioning convention.
 
 ## 7. CORS
 
@@ -116,7 +129,7 @@ app.cors.allowed-origins[2]=http://localhost:5176
 
 ## 8. Logging
 
-Logback is configured (`src/main/resources/logback-spring.xml`) with **size-based rollover**:
+Logback is configured (`app/src/main/resources/logback-spring.xml`) with **size-based rollover**:
 
 - Active log: `logs/lockdoc-app.log`
 - Rolls over once it reaches **10 MB**
@@ -125,32 +138,33 @@ Logback is configured (`src/main/resources/logback-spring.xml`) with **size-base
 
 ## 9. Project structure
 
+Multi-module Gradle build - four modules, each its own Gradle project (see `CLAUDE.md`
+for the dependency rules between them):
+
 ```
 lockdoc-app/
-├── build.gradle
-├── settings.gradle
+├── build.gradle              # shared plugin/version config for all subprojects
+├── settings.gradle           # include 'common', 'pharmacy', 'outpatient', 'app'
 ├── gradle.properties
 ├── README.md
 ├── CLAUDE.md
 ├── API.md
 ├── CHANGELOG.md
 ├── .gitignore
-└── src/
-    ├── main/
-    │   ├── java/com/lockdoc/app/
-    │   │   ├── LockDocApplication.java
-    │   │   ├── config/          # security, JWT, CORS configuration
-    │   │   ├── entity/          # User, Role, Right JPA entities
-    │   │   ├── repository/      # Spring Data repositories
-    │   │   ├── service/         # business + auth logic
-    │   │   ├── controller/      # REST controllers
-    │   │   └── exception/       # global exception handling
-    │   └── resources/
-    │       ├── application.properties
-    │       ├── logback-spring.xml
-    │       └── db/scripts/      # versioned Flyway DDL/DML scripts (V1 tables, V2 seed data)
-    └── test/
-        └── java/com/lockdoc/app/
+├── common/                   # shared kernel: auth, JWT/security, User/Role/Right,
+│   └── src/main/java/com/lockdoc/common/{config,controller,dto,entity,exception,repository,service}
+├── outpatient/                # patients
+│   └── src/main/java/com/lockdoc/outpatient/{controller,service,repository,entity,dto}
+├── pharmacy/                  # suppliers, medicines, purchases, sales, inventory, reports
+│   └── src/main/java/com/lockdoc/pharmacy/{controller,service,repository,entity,dto,exception}
+└── app/                        # the runnable Spring Boot module
+    ├── src/main/java/com/lockdoc/app/LockDocApplication.java
+    ├── src/main/resources/
+    │   ├── application.properties
+    │   ├── logback-spring.xml
+    │   ├── db-scripts-overview.html   # summary of all Flyway scripts by module
+    │   └── application.properties      # Flyway locations: common/, outpatient/, pharmacy/
+    └── src/test/java/com/lockdoc/app/
 ```
 
 ## 10. Configuration reference

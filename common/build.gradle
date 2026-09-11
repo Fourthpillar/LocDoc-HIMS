@@ -1,0 +1,14 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Shared kernel: auth, JWT/security config, User/Role/Right entities, CORS, generic exceptions, PageResponse, document numbering'
+
+dependencies {
+    api 'org.springframework.boot:spring-boot-starter-web'
+    api 'org.springframework.boot:spring-boot-starter-security'
+    api 'org.springframework.boot:spring-boot-starter-data-jpa'
+    api 'org.springframework.boot:spring-boot-starter-validation'
+
+    implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
+}

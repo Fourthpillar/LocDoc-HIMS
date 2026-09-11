@@ -1,0 +1,9 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Outpatient module: patient registration and lookup'
+
+dependencies {
+    implementation project(':common')
+}
