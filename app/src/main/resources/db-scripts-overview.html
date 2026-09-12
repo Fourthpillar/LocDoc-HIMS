@@ -156,6 +156,12 @@
           <td>Seed</td>
           <td>Seeds the <code>DOCTOR</code> and <code>HOSPITAL_ADMIN</code> roles and the module's rights, granting each side only its own half.</td>
         </tr>
+        <tr>
+          <td>V402</td>
+          <td><code>doctor/src/main/resources/db/scripts/doctor/V402__grant_super_admin_all_doctor_rights.sql</code></td>
+          <td>Seed</td>
+          <td>Grants <code>SUPER_ADMIN</code> every facility-side doctor right. The cross-facility access itself is code, not seed data - see <code>SecurityUtils.facilityScopeOrAll()</code>.</td>
+        </tr>
       </tbody>
     </table>
   </div>

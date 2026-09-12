@@ -76,9 +76,17 @@ public class DoctorFacilityMappingService {
                 .toList();
     }
 
-    /** Hospital/Clinic Admin inviting a doctor to their own facility. */
+    /**
+     * Hospital/Clinic Admin inviting a doctor to their own facility — or Super Admin
+     * inviting one into a facility they name, since they belong to none themselves.
+     */
     public DoctorFacilityMappingResponse invite(FacilityMappingInviteRequest request) {
-        Long facilityId = SecurityUtils.requireFacilityId();
+        Long scope = SecurityUtils.facilityScopeOrAll();
+        Long facilityId = scope != null ? scope : request.getFacilityId();
+        if (facilityId == null) {
+            throw new InvalidDocumentStateException(
+                    "You belong to no facility, so say which one this doctor is being invited to (facilityId)");
+        }
 
         Doctor doctor = doctorRepository.findById(request.getDoctorId())
                 .orElseThrow(() -> new ResourceNotFoundException("Doctor not found with id: " + request.getDoctorId()));
@@ -195,8 +203,11 @@ public class DoctorFacilityMappingService {
     /** What every doctor working here says their hours are — the front desk's read of §8.2. */
     @Transactional(readOnly = true)
     public List<DoctorStatedHoursResponse> statedHoursForMyFacility() {
-        Long facilityId = SecurityUtils.requireFacilityId();
-        return mappingRepository.findByFacilityIdAndStatus(facilityId, DoctorFacilityMapping.STATUS_ACCEPTED).stream()
+        Long facilityId = SecurityUtils.facilityScopeOrAll();
+        List<DoctorFacilityMapping> accepted = facilityId == null
+                ? mappingRepository.findByStatus(DoctorFacilityMapping.STATUS_ACCEPTED)
+                : mappingRepository.findByFacilityIdAndStatus(facilityId, DoctorFacilityMapping.STATUS_ACCEPTED);
+        return accepted.stream()
                 .map(DoctorStatedHoursResponse::toResponse)
                 .sorted(Comparator.comparing(DoctorStatedHoursResponse::getDoctorName, String.CASE_INSENSITIVE_ORDER))
                 .toList();
@@ -284,8 +295,10 @@ public class DoctorFacilityMappingService {
                 throw new AccessDeniedException("This mapping does not belong to you");
             }
         } else {
-            Long facilityId = SecurityUtils.requireFacilityId();
-            if (!mapping.getFacility().getId().equals(facilityId)) {
+            Long facilityId = SecurityUtils.facilityScopeOrAll();
+            // A null scope is Super Admin, who oversees every facility — there is no
+            // "yours" for the mapping to fail to belong to.
+            if (facilityId != null && !mapping.getFacility().getId().equals(facilityId)) {
                 throw new AccessDeniedException("This mapping does not belong to your facility");
             }
         }
@@ -305,8 +318,11 @@ public class DoctorFacilityMappingService {
     }
 
     public List<DoctorFacilityMappingResponse> facilityMappings() {
-        Long facilityId = SecurityUtils.requireFacilityId();
-        return mappingRepository.findByFacilityIdOrderByRequestedAtDesc(facilityId).stream()
+        Long facilityId = SecurityUtils.facilityScopeOrAll();
+        List<DoctorFacilityMapping> mappings = facilityId == null
+                ? mappingRepository.findAllByOrderByRequestedAtDesc()
+                : mappingRepository.findByFacilityIdOrderByRequestedAtDesc(facilityId);
+        return mappings.stream()
                 .map(DoctorFacilityMappingResponse::toResponse)
                 .toList();
     }
@@ -318,7 +334,13 @@ public class DoctorFacilityMappingService {
     }
 
     private DoctorFacilityMapping findOwnedByCurrentFacility(Long mappingId) {
-        Long facilityId = SecurityUtils.requireFacilityId();
+        Long facilityId = SecurityUtils.facilityScopeOrAll();
+        if (facilityId == null) {
+            // Super Admin acts across facilities; the mapping names its own, so there is
+            // no "mine" to check it against.
+            return mappingRepository.findById(mappingId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Mapping not found with id: " + mappingId));
+        }
         return mappingRepository.findByIdAndFacilityId(mappingId, facilityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Mapping not found for this facility with id: " + mappingId));
     }

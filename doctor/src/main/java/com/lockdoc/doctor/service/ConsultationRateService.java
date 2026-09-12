@@ -85,13 +85,15 @@ public class ConsultationRateService {
      * build order step 5's own piece of the same flow, not a new one.
      */
     public List<ConsultationRateResponse> pendingForFacility() {
-        Long facilityId = SecurityUtils.requireFacilityId();
-        return rateRepository.findByFacilityIdAndStatusOrderByCreatedDateDesc(facilityId, ConsultationRate.STATUS_PENDING_APPROVAL)
-                .stream().map(ConsultationRateResponse::toResponse).toList();
+        Long facilityId = SecurityUtils.facilityScopeOrAll();
+        List<ConsultationRate> pending = facilityId == null
+                ? rateRepository.findByStatusOrderByCreatedDateDesc(ConsultationRate.STATUS_PENDING_APPROVAL)
+                : rateRepository.findByFacilityIdAndStatusOrderByCreatedDateDesc(facilityId, ConsultationRate.STATUS_PENDING_APPROVAL);
+        return pending.stream().map(ConsultationRateResponse::toResponse).toList();
     }
 
     public ConsultationRateResponse approve(Long id) {
-        Long facilityId = SecurityUtils.requireFacilityId();
+        Long facilityId = SecurityUtils.facilityScopeOrAll();
         Long userId = SecurityUtils.currentUserId();
         ConsultationRate rate = findOwnedByFacility(id, facilityId);
         requirePending(rate);
@@ -103,7 +105,7 @@ public class ConsultationRateService {
     }
 
     public ConsultationRateResponse reject(Long id, ConsultationRateRejectRequest request) {
-        Long facilityId = SecurityUtils.requireFacilityId();
+        Long facilityId = SecurityUtils.facilityScopeOrAll();
         Long userId = SecurityUtils.currentUserId();
         ConsultationRate rate = findOwnedByFacility(id, facilityId);
         requirePending(rate);
@@ -114,10 +116,16 @@ public class ConsultationRateService {
         return ConsultationRateResponse.toResponse(rateRepository.save(rate));
     }
 
+    /**
+     * The proposal, checked against the caller's facility — unless there isn't one.
+     * A null facilityId is Super Admin's cross-facility scope (see
+     * SecurityUtils.facilityScopeOrAll): the rate names its own facility, so there is
+     * nothing for "mine" to be checked against.
+     */
     private ConsultationRate findOwnedByFacility(Long id, Long facilityId) {
         ConsultationRate rate = rateRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Consultation rate proposal not found with id: " + id));
-        if (!rate.getFacility().getId().equals(facilityId)) {
+        if (facilityId != null && !rate.getFacility().getId().equals(facilityId)) {
             throw new ResourceNotFoundException("Consultation rate proposal not found with id: " + id);
         }
         return rate;

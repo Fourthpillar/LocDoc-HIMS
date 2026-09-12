@@ -12,6 +12,9 @@ public interface DoctorFacilityMappingRepository extends JpaRepository<DoctorFac
 
     List<DoctorFacilityMapping> findByFacilityIdOrderByRequestedAtDesc(Long facilityId);
 
+    /** Every facility's mappings — Super Admin sees the platform whole. */
+    List<DoctorFacilityMapping> findAllByOrderByRequestedAtDesc();
+
     Optional<DoctorFacilityMapping> findByIdAndDoctorId(Long id, Long doctorId);
 
     Optional<DoctorFacilityMapping> findByIdAndFacilityId(Long id, Long facilityId);
@@ -21,4 +24,6 @@ public interface DoctorFacilityMappingRepository extends JpaRepository<DoctorFac
     List<DoctorFacilityMapping> findByDoctorIdAndStatus(Long doctorId, String status);
 
     List<DoctorFacilityMapping> findByFacilityIdAndStatus(Long facilityId, String status);
+
+    List<DoctorFacilityMapping> findByStatus(String status);
 }

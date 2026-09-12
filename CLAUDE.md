@@ -57,6 +57,7 @@ Current version ledger (do not renumber existing files):
 | V102 | `common/src/main/resources/db/scripts/common` | `facilities` table + nullable `users.facility_id`; seeds one demo facility |
 | V400 | `doctor/src/main/resources/db/scripts/doctor` | doctor module DDL - doctors, doctor_facility_mappings(+hours), doctor_statuses, consultation_rates, free_review_policies |
 | V401 | `doctor/src/main/resources/db/scripts/doctor` | seeds the `DOCTOR` and `HOSPITAL_ADMIN` roles and the module's rights |
+| V402 | `doctor/src/main/resources/db/scripts/doctor` | grants `SUPER_ADMIN` every facility-side doctor right |
 
 `app/src/main/resources/db-scripts-overview.html` summarises the complete migration catalog across all modules; no SQL migrations remain under `app/src/main/resources`.
 
@@ -72,7 +73,14 @@ The codebase is a multi-module Gradle build, each module its own Gradle project 
 | `doctor` | Doctor identity and Super-Admin verification (`/platform/doctors`), the doctor's own side (`/doctor/**`: profile, facility mappings + stated consulting hours, live status, proposing a consultation fee) and the facility's side (`/facility/**`: inviting doctors, approving fees, free-review policy, who is on duty) | `common` |
 | `app` | `LockDocApplication` (main class, with explicit `@ComponentScan`/`@EntityScan`/`@EnableJpaRepositories(basePackages = "com.lockdoc")` since beans now span multiple modules), `application.properties`, Flyway scripts, tests | `common`, `pharmacy`, `outpatient`, `doctor` |
 
-**Facility scoping**: `common` owns `Facility` and the optional `users.facility_id`. The doctor module is the first to scope by it — every facility-scoped service reads the acting facility from `SecurityUtils.requireFacilityId()` (off the request's `AppUserPrincipal`), never from a client-supplied parameter, because a tenant boundary that depends on a request field is not a boundary. `facility_id` is nullable and pharmacy/outpatient do not read it yet: a user with no facility (Super Admin) is refused by `requireFacilityId()` with a 403, which is correct — Super Admin acts through `/platform/**`.
+**Facility scoping**: `common` owns `Facility` and the optional `users.facility_id`. The doctor module is the first to scope by it, and reads the acting facility off the request's `AppUserPrincipal`, never from a client-supplied parameter — a tenant boundary that depends on a request field is not a boundary. `facility_id` is nullable and pharmacy/outpatient do not read it yet.
+
+There are two ways to ask for that scope, and the difference is a judgement about the caller:
+
+- `SecurityUtils.requireFacilityId()` — the caller must belong to a facility. Use it where acting without one is meaningless.
+- `SecurityUtils.facilityScopeOrAll()` — returns the caller's facility, or **null meaning "every facility"** for Super Admin, who belongs to none precisely because the platform is theirs to oversee. Callers must handle the null: a list widens to all facilities, an action on one record skips the "is this mine" check (the record carries its own facility), and anything that must *create* inside one facility asks for it explicitly (`facilityId` on the request). Anyone else without a facility is still refused.
+
+The doctor module's facility-scoped services all use the second. That is what makes every doctor screen usable by Super Admin; `V402` grants the rights, but rights were never the barrier — the scope check was.
 
 **Rule**: `pharmacy` and `outpatient` never reach into each other's entities/repositories directly — the only link between them is `pharmacy`'s `SalesService` calling `outpatient`'s `PatientService` **bean** (e.g. `patientService.get(id)`) to validate a patient or resolve a name. `SalesInvoice` stores a plain `patientId` (no JPA relation to `Patient`). `common` is a shared kernel both feature modules depend on directly — that one *is* meant to be reached into like any other library, no service indirection needed. This retires the old "pharmacy sub-package exception" below this table used to document: each former `*.pharmacy` sub-package is now its own Gradle module, so there's nothing left to special-case.
 

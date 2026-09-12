@@ -31,8 +31,9 @@ public class FreeReviewPolicyController {
     }
 
     @DeleteMapping("/{doctorId}")
-    public ResponseEntity<Void> delete(@PathVariable Long doctorId) {
-        policyService.delete(doctorId);
+    public ResponseEntity<Void> delete(@PathVariable Long doctorId,
+                                       @RequestParam(required = false) Long facilityId) {
+        policyService.delete(doctorId, facilityId);
         return ResponseEntity.noContent().build();
     }
 }

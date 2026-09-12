@@ -16,6 +16,9 @@ public interface DoctorStatusRepository extends JpaRepository<DoctorStatus, Long
     /** All of a facility's doctors' status rows for a date — latest-per-doctor resolution happens in the service. */
     List<DoctorStatus> findByFacilityIdAndSessionDateOrderByCreatedDateDesc(Long facilityId, LocalDate sessionDate);
 
+    /** Today across every facility — Super Admin's board. */
+    List<DoctorStatus> findBySessionDateOrderByCreatedDateDesc(LocalDate sessionDate);
+
     /** All of a doctor's status rows (across every facility) for a date — same latest-per-facility resolution in the service. */
     List<DoctorStatus> findByDoctorIdAndSessionDateOrderByCreatedDateDesc(Long doctorId, LocalDate sessionDate);
 

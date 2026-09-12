@@ -1,6 +1,7 @@
 package com.lockdoc.doctor.controller;
 
 import com.lockdoc.doctor.dto.DoctorSearchResult;
+import com.lockdoc.doctor.dto.DoctorStatedHoursResponse;
 import com.lockdoc.doctor.dto.DoctorFacilityMappingResponse;
 import com.lockdoc.doctor.dto.FacilityMappingInviteRequest;
 import com.lockdoc.doctor.service.DoctorFacilityMappingService;
@@ -29,6 +30,19 @@ public class FacilityDoctorMappingController {
     @GetMapping
     public ResponseEntity<List<DoctorFacilityMappingResponse>> facilityMappings() {
         return ResponseEntity.ok(mappingService.facilityMappings());
+    }
+
+    /**
+     * What every doctor working here says their consulting hours are.
+     *
+     * The source branch exposed this from the OP module, for the front desk. That
+     * module is not here yet, and leaving the service method unreachable would have
+     * shipped the data with no way to read it — so it lives on the facility's own
+     * mapping endpoints until reception has a screen of its own.
+     */
+    @GetMapping("/consultation-hours")
+    public ResponseEntity<List<DoctorStatedHoursResponse>> statedHours() {
+        return ResponseEntity.ok(mappingService.statedHoursForMyFacility());
     }
 
     @GetMapping("/search-doctors")

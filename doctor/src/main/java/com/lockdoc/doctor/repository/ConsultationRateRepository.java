@@ -13,4 +13,7 @@ public interface ConsultationRateRepository extends JpaRepository<ConsultationRa
 
     /** Feeds build order step 5's approval queue and OP billing rate lookup — not called by anything in step 4 itself. */
     List<ConsultationRate> findByFacilityIdAndStatusOrderByCreatedDateDesc(Long facilityId, String status);
+
+    /** Across every facility — Super Admin's view of what is waiting to be approved anywhere. */
+    List<ConsultationRate> findByStatusOrderByCreatedDateDesc(String status);
 }

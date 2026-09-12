@@ -19,4 +19,10 @@ public class FacilityMappingInviteRequest {
 
     @NotBlank(message = "relationshipType is required")
     private String relationshipType;
+
+    /**
+     * Which facility the doctor is being invited to. Ignored for a user who belongs to
+     * one (theirs is used); required for Super Admin, who belongs to none.
+     */
+    private Long facilityId;
 }

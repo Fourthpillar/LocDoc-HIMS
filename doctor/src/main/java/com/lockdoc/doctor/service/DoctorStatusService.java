@@ -111,26 +111,29 @@ public class DoctorStatusService {
      * Reception's override (Master Spec §8.3, build order step 5) - the
      * front-desk day list's status-override control. Unlike
      * {@link #setStatus}, the target doctor is not the caller, so this
-     * validates the ACCEPTED mapping the same way but keyed off the
-     * facility (the caller's own, via requireFacilityId()) rather than the
-     * caller's own Doctor profile - a Receptionist has none.
+     * validates the ACCEPTED mapping the same way but keyed off the facility rather
+     * than the caller's own Doctor profile - a Receptionist has none.
+     *
+     * A caller who belongs to no facility (Super Admin) names the facility on the
+     * request; when the doctor practises at exactly one, there is nothing to name.
      */
     public DoctorStatusResponse overrideStatus(DoctorStatusOverrideRequest request) {
         if (!VALID_STATUSES.contains(request.getStatus())) {
             throw new InvalidDocumentStateException("Unknown status: " + request.getStatus());
         }
 
-        Long facilityId = SecurityUtils.requireFacilityId();
         Long userId = SecurityUtils.currentUserId();
 
         Doctor doctor = doctorRepository.findById(request.getDoctorId())
                 .orElseThrow(() -> new ResourceNotFoundException("Doctor not found with id: " + request.getDoctorId()));
 
+        Long facilityId = resolveFacilityFor(doctor.getId(), request.getFacilityId());
+
         boolean mapped = !mappingRepository
                 .findByDoctorIdAndFacilityIdAndStatusIn(doctor.getId(), facilityId, List.of(DoctorFacilityMapping.STATUS_ACCEPTED))
                 .isEmpty();
         if (!mapped) {
-            throw new InvalidDocumentStateException("This doctor is not currently mapped to your facility");
+            throw new InvalidDocumentStateException("This doctor is not currently mapped to that facility");
         }
 
         Facility facility = facilityRepository.findById(facilityId)
@@ -147,20 +150,43 @@ public class DoctorStatusService {
         return DoctorStatusResponse.toResponse(statusRepository.save(status));
     }
 
+    /** The facility a status is recorded against — see {@link #overrideStatus}. */
+    private Long resolveFacilityFor(Long doctorId, Long requestedFacilityId) {
+        Long scope = SecurityUtils.facilityScopeOrAll();
+        if (scope != null) {
+            return scope;
+        }
+        if (requestedFacilityId != null) {
+            return requestedFacilityId;
+        }
+        List<DoctorFacilityMapping> accepted =
+                mappingRepository.findByDoctorIdAndStatus(doctorId, DoctorFacilityMapping.STATUS_ACCEPTED);
+        if (accepted.size() == 1) {
+            return accepted.get(0).getFacility().getId();
+        }
+        throw new InvalidDocumentStateException(accepted.isEmpty()
+                ? "This doctor does not practise at any facility yet"
+                : "This doctor practises at several facilities - say which one this status is for (facilityId)");
+    }
+
     /**
-     * Hospital/Clinic Admin's view of every doctor currently status-active
-     * at their facility today. Backend only, per build order step 4 — no
-     * screen consumes this until step 5's front-desk day list.
+     * Who is on duty today: at this facility, or — for a caller who belongs to no
+     * facility (Super Admin) — across every one of them.
      */
     public List<DoctorStatusResponse> facilityStatusToday() {
-        Long facilityId = SecurityUtils.requireFacilityId();
+        Long facilityId = SecurityUtils.facilityScopeOrAll();
         LocalDate today = LocalDate.now(IST);
-        List<DoctorStatus> all = statusRepository.findByFacilityIdAndSessionDateOrderByCreatedDateDesc(facilityId, today);
+        List<DoctorStatus> all = facilityId == null
+                ? statusRepository.findBySessionDateOrderByCreatedDateDesc(today)
+                : statusRepository.findByFacilityIdAndSessionDateOrderByCreatedDateDesc(facilityId, today);
 
-        // Latest row per doctor — `all` is already createdDate-desc, so the first occurrence per doctor wins.
+        // Latest row per doctor *per facility* — the same doctor can be on duty at two
+        // facilities on one day, and folding by doctor alone would silently drop one.
+        // `all` is already createdDate-desc, so the first occurrence of each key wins.
         return all.stream()
                 .collect(java.util.stream.Collectors.toMap(
-                        s -> s.getDoctor().getId(), s -> s, (first, later) -> first, java.util.LinkedHashMap::new))
+                        s -> s.getDoctor().getId() + ":" + s.getFacility().getId(),
+                        s -> s, (first, later) -> first, java.util.LinkedHashMap::new))
                 .values().stream()
                 .map(DoctorStatusResponse::toResponse)
                 .toList();

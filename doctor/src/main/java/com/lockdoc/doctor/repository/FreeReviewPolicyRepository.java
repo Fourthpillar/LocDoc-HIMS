@@ -11,4 +11,7 @@ public interface FreeReviewPolicyRepository extends JpaRepository<FreeReviewPoli
     Optional<FreeReviewPolicy> findByDoctorIdAndFacilityId(Long doctorId, Long facilityId);
 
     List<FreeReviewPolicy> findByFacilityId(Long facilityId);
+
+    /** Every facility's policies — the cross-facility read Super Admin gets (SecurityUtils.facilityScopeOrAll). */
+    List<FreeReviewPolicy> findAllByOrderByIdAsc();
 }
