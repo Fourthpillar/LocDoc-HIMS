@@ -6,7 +6,7 @@ Guidance for Claude (or any AI assistant) working in this repository.
 
 LockDoc App is a Spring Boot 3 (Java 17) REST API:
 
-- **Build tool**: Gradle (Groovy DSL), **multi-module**: `common`, `pharmacy`, `outpatient`, `app` (see "Module structure" below) — not Maven. `gradle build` / `gradle test` at the root build/test all four modules; run the app with `gradle :app:bootRun` (only `app` has the Boot plugin applied, so plain `gradle bootRun` no longer works).
+- **Build tool**: Gradle (Groovy DSL), **multi-module**: `common`, `pharmacy`, `outpatient`, `doctor`, `app` (see "Module structure" below) — not Maven. `gradle build` / `gradle test` at the root build/test all five modules; run the app with `gradle :app:bootRun` (only `app` has the Boot plugin applied, so plain `gradle bootRun` no longer works).
 - **Config format**: `application.properties` — not YAML. If you add config, use dotted-key properties syntax (e.g. `app.cors.allowed-origins[0]=...` for list entries), and keep it consistent with the existing file rather than introducing a `.yml` alongside it.
 - **Database**: H2, file-based (`jdbc:h2:file:./data/lockdocdb`) — never switch this to in-memory (`jdbc:h2:mem:`) without being asked; the whole point is durability across restarts.
 - **Schema management**: Flyway only. Do not set `spring.jpa.hibernate.ddl-auto` to `update` or `create`. It must stay `validate` — the schema is owned by the versioned SQL scripts.
@@ -22,12 +22,13 @@ All schema and seed-data changes MUST go through a new versioned Flyway script i
 common/src/main/resources/db/scripts/common/
 outpatient/src/main/resources/db/scripts/outpatient/
 pharmacy/src/main/resources/db/scripts/pharmacy/
+doctor/src/main/resources/db/scripts/doctor/
 ```
 
 Rules:
 1. **Never edit a script that has already been committed/applied.** Flyway checksums applied migrations; editing one breaks `validate-on-migrate` for anyone who already ran it.
 2. **Versioning is per-module blocks of 100**, not one global counter — see the table below. Create a new file following the pattern `V{next_number_in_your_module's_block}__{snake_case_description}.sql`, e.g. the next pharmacy script after `V201` is `V202__...sql`. This keeps modules from colliding on version numbers as they're developed independently, since Flyway's combined `spring.flyway.locations` list still requires every version to be globally unique. Leave gaps inside a block for future scripts — don't compact/renumber to close them.
-3. Keep module-owned DDL in the owning module: `common` for shared auth/user schema, `outpatient` for patients, `pharmacy` for pharmacy tables. Do not leave seed or data-fix scripts in the app module.
+3. Keep module-owned DDL in the owning module: `common` for shared auth/user schema (including `facilities`, which is not any one feature module's property), `outpatient` for patients, `pharmacy` for pharmacy tables, `doctor` for doctors and everything keyed on them. Do not leave seed or data-fix scripts in the app module.
 4. Update the corresponding JPA entity in `entity/` to match, and bump any relevant repository/service code.
 5. Document the new version in `CHANGELOG.md` under "Unreleased" or a new version heading.
 6. Never write DDL directly against the running H2 file — always go through a script so the change is reproducible.
@@ -40,7 +41,8 @@ Version block assignment (a new module claims the next unused block; add a row h
 | V100-V199 | `common` |
 | V200-V299 | `pharmacy` |
 | V300-V399 | `outpatient` |
-| V400-V499 | *(next module)* |
+| V400-V499 | `doctor` |
+| V500-V599 | *(next module)* |
 
 Current version ledger (do not renumber existing files):
 
@@ -52,6 +54,9 @@ Current version ledger (do not renumber existing files):
 | V201 | `pharmacy/src/main/resources/db/scripts/pharmacy` | seeds `PHARMACY_*` rights, maps them to `SUPER_ADMIN`, adds a `PHARMACIST` role |
 | V300 | `outpatient/src/main/resources/db/scripts/outpatient` | creates the `patients` table for the outpatient module |
 | V301 | `outpatient/src/main/resources/db/scripts/outpatient` | seeds `OUTPATIENT_PATIENT_MANAGE` and maps it to `SUPER_ADMIN` |
+| V102 | `common/src/main/resources/db/scripts/common` | `facilities` table + nullable `users.facility_id`; seeds one demo facility |
+| V400 | `doctor/src/main/resources/db/scripts/doctor` | doctor module DDL - doctors, doctor_facility_mappings(+hours), doctor_statuses, consultation_rates, free_review_policies |
+| V401 | `doctor/src/main/resources/db/scripts/doctor` | seeds the `DOCTOR` and `HOSPITAL_ADMIN` roles and the module's rights |
 
 `app/src/main/resources/db-scripts-overview.html` summarises the complete migration catalog across all modules; no SQL migrations remain under `app/src/main/resources`.
 
@@ -64,7 +69,10 @@ The codebase is a multi-module Gradle build, each module its own Gradle project 
 | `common` | Auth/JWT/security config, `User`/`Role`/`Right`, generic exceptions (`ResourceNotFoundException`, `DuplicateResourceException`, `GlobalExceptionHandler`, `ApiErrorResponseFactory`), `PageResponse`, document-numbering (`DocumentNumberService`/`DocumentSequence`) | — |
 | `outpatient` | Patients (`/outpatient/patients`) | `common` |
 | `pharmacy` | Suppliers, medicines/batches, purchase orders, purchases/GRN, sales, sales returns, inventory, reports, plus the two pharmacy-specific exceptions (`InsufficientStockException`, `InvalidDocumentStateException`) and their own `PharmacyExceptionHandler` | `common`, `outpatient` |
-| `app` | `LockDocApplication` (main class, with explicit `@ComponentScan`/`@EntityScan`/`@EnableJpaRepositories(basePackages = "com.lockdoc")` since beans now span multiple modules), `application.properties`, Flyway scripts, tests | `common`, `pharmacy`, `outpatient` |
+| `doctor` | Doctor identity and Super-Admin verification (`/platform/doctors`), the doctor's own side (`/doctor/**`: profile, facility mappings + stated consulting hours, live status, proposing a consultation fee) and the facility's side (`/facility/**`: inviting doctors, approving fees, free-review policy, who is on duty) | `common` |
+| `app` | `LockDocApplication` (main class, with explicit `@ComponentScan`/`@EntityScan`/`@EnableJpaRepositories(basePackages = "com.lockdoc")` since beans now span multiple modules), `application.properties`, Flyway scripts, tests | `common`, `pharmacy`, `outpatient`, `doctor` |
+
+**Facility scoping**: `common` owns `Facility` and the optional `users.facility_id`. The doctor module is the first to scope by it — every facility-scoped service reads the acting facility from `SecurityUtils.requireFacilityId()` (off the request's `AppUserPrincipal`), never from a client-supplied parameter, because a tenant boundary that depends on a request field is not a boundary. `facility_id` is nullable and pharmacy/outpatient do not read it yet: a user with no facility (Super Admin) is refused by `requireFacilityId()` with a 403, which is correct — Super Admin acts through `/platform/**`.
 
 **Rule**: `pharmacy` and `outpatient` never reach into each other's entities/repositories directly — the only link between them is `pharmacy`'s `SalesService` calling `outpatient`'s `PatientService` **bean** (e.g. `patientService.get(id)`) to validate a patient or resolve a name. `SalesInvoice` stores a plain `patientId` (no JPA relation to `Patient`). `common` is a shared kernel both feature modules depend on directly — that one *is* meant to be reached into like any other library, no service indirection needed. This retires the old "pharmacy sub-package exception" below this table used to document: each former `*.pharmacy` sub-package is now its own Gradle module, so there's nothing left to special-case.
 
@@ -124,4 +132,6 @@ Beyond the auth-related exceptions already handled in `common`'s `GlobalExceptio
 | `InvalidDocumentStateException` | 409 | illegal document status transition (e.g. approving an already-approved PO) |
 | `InsufficientStockException` | 409 | a sale/cancel would drive batch stock negative |
 
-New feature areas needing similar semantics should reuse these rather than inventing new exception types.
+New feature areas needing similar semantics should reuse these rather than inventing new exception types — with one deliberate exception already in place: the `doctor` module has its own `InvalidDocumentStateException` and `DoctorExceptionHandler`, mirroring pharmacy's, because the alternative was the doctor module depending on `pharmacy` for an exception class. If a third module needs those semantics, promote one copy into `common` rather than adding a third.
+
+`IllegalStateException` is mapped to **403** in `common`'s `GlobalExceptionHandler`: the only place that throws it in anger is `SecurityUtils.requireFacilityId()`, and being refused there is an authorization answer, not a server fault.

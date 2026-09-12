@@ -49,6 +49,8 @@ public class AuthService {
                 .username(user.getUsername())
                 .roles(roleCodes)
                 .rights(rightCodes)
+                .facilityId(user.getFacility() == null ? null : user.getFacility().getId())
+                .facilityName(user.getFacility() == null ? null : user.getFacility().getName())
                 .build();
     }
 }

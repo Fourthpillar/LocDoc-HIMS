@@ -56,6 +56,21 @@ public class GlobalExceptionHandler {
         return ApiErrorResponseFactory.build(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
+    /**
+     * A facility-scoped operation attempted by a user who has no facility —
+     * {@link com.lockdoc.common.config.SecurityUtils#requireFacilityId()}. It is a
+     * permissions answer, not a server fault: Super Admin works across facilities
+     * and acts through platform endpoints, so being refused here is correct
+     * behaviour and should read as 403 rather than 500.
+     *
+     * The only other IllegalStateException in the codebase is "user not found
+     * after authentication", which is genuinely unreachable.
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalState(IllegalStateException ex) {
+        return ApiErrorResponseFactory.build(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneric(Exception ex) {
         log.error("Unhandled exception", ex);

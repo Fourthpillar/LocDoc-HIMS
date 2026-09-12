@@ -19,6 +19,9 @@ public class LoginResponse {
     private String username;
     private List<String> roles;
     private List<String> rights;
+    /** The facility this user acts in — null for Super Admin and for doctors. */
+    private Long facilityId;
+    private String facilityName;
 
     @Builder.Default
     private String tokenType = "Bearer";

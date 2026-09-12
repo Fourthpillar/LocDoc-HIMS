@@ -1,5 +1,6 @@
 package com.lockdoc.common.service;
 
+import com.lockdoc.common.config.AppUserPrincipal;
 import com.lockdoc.common.entity.Right;
 import com.lockdoc.common.entity.Role;
 import com.lockdoc.common.entity.User;
@@ -34,12 +35,13 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             }
         }
 
-        return org.springframework.security.core.userdetails.User.builder()
-                .username(user.getUsername())
-                .password(user.getPassword())
-                .disabled(!Boolean.TRUE.equals(user.getEnabled()))
-                .accountLocked(!Boolean.TRUE.equals(user.getAccountNonLocked()))
-                .authorities(authorities)
-                .build();
+        return new AppUserPrincipal(
+                user.getUsername(),
+                user.getPassword(),
+                Boolean.TRUE.equals(user.getEnabled()),
+                Boolean.TRUE.equals(user.getAccountNonLocked()),
+                authorities,
+                user.getId(),
+                user.getFacility() == null ? null : user.getFacility().getId());
     }
 }

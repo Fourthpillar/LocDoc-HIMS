@@ -8,9 +8,9 @@ A Spring Boot 3 REST API backend with:
 - **User / Role / Right** model with a default super-admin user (`FP_USER`)
 - **Spring Boot Actuator** health check
 - **Size-based rolling file logs** via Logback
-- **Flyway** versioned SQL migration scripts split by ownership: `common/src/main/resources/db/scripts/common`, `outpatient/src/main/resources/db/scripts/outpatient`, and `pharmacy/src/main/resources/db/scripts/pharmacy` (`app/src/main/resources/db-scripts-overview.html` summarises the full catalog)
+- **Flyway** versioned SQL migration scripts split by ownership: `common/src/main/resources/db/scripts/common`, `outpatient/src/main/resources/db/scripts/outpatient`, `pharmacy/src/main/resources/db/scripts/pharmacy`, and `doctor/src/main/resources/db/scripts/doctor` (`app/src/main/resources/db-scripts-overview.html` summarises the full catalog)
 - Application context path: `/lockdoc`, port: `7321`
-- Multi-module Gradle build: `common`, `pharmacy`, `outpatient`, `app` (see `CLAUDE.md` for the module structure)
+- Multi-module Gradle build: `common`, `pharmacy`, `outpatient`, `doctor`, `app` (see `CLAUDE.md` for the module structure)
 
 ---
 
@@ -37,7 +37,7 @@ java -jar app/build/libs/lockdoc-app.jar
 ```
 
 On first startup:
-- Flyway runs the versioned scripts from the owning modules (`common`, `outpatient`, `pharmacy`) to create the schema and bootstrap the shared default records.
+- Flyway runs the versioned scripts from the owning modules (`common`, `outpatient`, `pharmacy`, `doctor`) to create the schema and bootstrap the shared default records.
 - The H2 database file is created at `./data/lockdocdb.mv.db` (relative to the working directory).
 - Logs are written to `./logs/lockdoc-app.log`.
 
@@ -105,6 +105,7 @@ module later without colliding with another module's versions:
 common/src/main/resources/db/scripts/common/        (V100-V199)
   V100__create_tables.sql        -- users, roles, rights + join tables (core shared DDL)
   V101__seed_default_data.sql    -- default rights, SUPER_ADMIN role, FP_USER
+  V102__create_facilities.sql    -- facilities + nullable users.facility_id
 
 pharmacy/src/main/resources/db/scripts/pharmacy/     (V200-V299)
   V200__create_pharmacy_tables.sql  -- pharmacy DDL only
@@ -113,6 +114,10 @@ pharmacy/src/main/resources/db/scripts/pharmacy/     (V200-V299)
 outpatient/src/main/resources/db/scripts/outpatient/ (V300-V399)
   V300__create_patient_tables.sql   -- patient table owned by outpatient
   V301__seed_outpatient_rights.sql  -- OUTPATIENT_PATIENT_MANAGE, SUPER_ADMIN mapping
+
+doctor/src/main/resources/db/scripts/doctor/         (V400-V499)
+  V400__create_doctor_tables.sql            -- doctors, facility mappings + hours, status, rates, free-review policy
+  V401__seed_doctor_roles_and_rights.sql    -- DOCTOR and HOSPITAL_ADMIN roles and their rights
 ```
 
 `app/src/main/resources/db-scripts-overview.html` documents the full script catalog and module ownership. Flyway applies these automatically on startup, in order, and tracks the applied version in the `flyway_schema_history` table. **Never edit an already-applied script** — add a new `V{next_number_in_your_module's_block}__description.sql` file instead. See [CLAUDE.md](CLAUDE.md) for the versioning convention.

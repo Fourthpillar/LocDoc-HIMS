@@ -1,3 +1,3 @@
 rootProject.name = 'lockdoc-app'
 
-include 'common', 'pharmacy', 'outpatient', 'app'
+include 'common', 'pharmacy', 'outpatient', 'doctor', 'app'

@@ -46,6 +46,17 @@ public class User {
     @Column(name = "updated_date")
     private LocalDateTime updatedDate;
 
+    /**
+     * The facility this user works at, or null for a user who belongs to none —
+     * Super Admin, and a doctor (whose facilities are a mapping, not a column).
+     */
+    // EAGER on purpose, like roles above: login and every authenticated request
+    // read the facility to build the principal, and both do it outside a
+    // transaction — a lazy proxy there fails at exactly the moment it is needed.
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "facility_id")
+    private Facility facility;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_roles",

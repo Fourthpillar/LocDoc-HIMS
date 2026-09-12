@@ -1,0 +1,9 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Doctor module: doctor identity and verification, facility mappings and stated consulting hours, on-duty status, consultation rates, free-review policy'
+
+dependencies {
+    implementation project(':common')
+}

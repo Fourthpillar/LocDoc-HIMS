@@ -36,7 +36,8 @@
         <tr><td>V100-V199</td><td>common</td></tr>
         <tr><td>V200-V299</td><td>pharmacy</td></tr>
         <tr><td>V300-V399</td><td>outpatient</td></tr>
-        <tr><td>V400-V499</td><td>(next module)</td></tr>
+        <tr><td>V400-V499</td><td>doctor</td></tr>
+        <tr><td>V500-V599</td><td>(next module)</td></tr>
       </tbody>
     </table>
   </div>
@@ -64,6 +65,12 @@
           <td><code>common/src/main/resources/db/scripts/common/V101__seed_default_data.sql</code></td>
           <td>Seed</td>
           <td>Seeds baseline rights, the <code>SUPER_ADMIN</code> role, and the default super-admin user <code>FP_USER</code>.</td>
+        </tr>
+        <tr>
+          <td>V102</td>
+          <td><code>common/src/main/resources/db/scripts/common/V102__create_facilities.sql</code></td>
+          <td>DDL</td>
+          <td>Creates the <code>facilities</code> table and the nullable <code>users.facility_id</code> link. Added for the doctor module; lives in common because outpatient and pharmacy will scope by facility too. Seeds one demo facility.</td>
         </tr>
       </tbody>
     </table>
@@ -120,6 +127,34 @@
           <td><code>outpatient/src/main/resources/db/scripts/outpatient/V301__seed_outpatient_rights.sql</code></td>
           <td>Seed</td>
           <td>Seeds <code>OUTPATIENT_PATIENT_MANAGE</code> and maps it to <code>SUPER_ADMIN</code>.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>4) Doctor module (V400-V499)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Version</th>
+          <th>File</th>
+          <th>Type</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>V400</td>
+          <td><code>doctor/src/main/resources/db/scripts/doctor/V400__create_doctor_tables.sql</code></td>
+          <td>DDL</td>
+          <td>Creates <code>doctors</code>, <code>doctor_facility_mappings</code> (+ <code>doctor_facility_mapping_hours</code>), <code>doctor_statuses</code>, <code>consultation_rates</code> and <code>free_review_policies</code>.</td>
+        </tr>
+        <tr>
+          <td>V401</td>
+          <td><code>doctor/src/main/resources/db/scripts/doctor/V401__seed_doctor_roles_and_rights.sql</code></td>
+          <td>Seed</td>
+          <td>Seeds the <code>DOCTOR</code> and <code>HOSPITAL_ADMIN</code> roles and the module's rights, granting each side only its own half.</td>
         </tr>
       </tbody>
     </table>
