@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "locdoc-hims-backend",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "gradlew.bat", "bootRun"],
+      "port": 7321,
+      "url": "http://localhost:7321/lockdoc/actuator/health"
+    }
+  ]
+}

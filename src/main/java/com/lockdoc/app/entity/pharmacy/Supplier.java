@@ -1,5 +1,6 @@
 package com.lockdoc.app.entity.pharmacy;
 
+import com.lockdoc.app.entity.Facility;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -17,6 +18,10 @@ public class Supplier {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "facility_id", nullable = false)
+    private Facility facility;
 
     @Column(name = "name", nullable = false, length = 150)
     private String name;
@@ -66,6 +71,11 @@ public class Supplier {
     @Column(name = "active", nullable = false)
     @Builder.Default
     private Boolean active = true;
+
+    /** Master Spec §12/§31a - Hospital/Clinic Admin must accept a supplier before a Pharmacist can raise a PO against them. */
+    @Column(name = "accepted", nullable = false)
+    @Builder.Default
+    private Boolean accepted = false;
 
     @Column(name = "created_date", nullable = false, updatable = false)
     private LocalDateTime createdDate;

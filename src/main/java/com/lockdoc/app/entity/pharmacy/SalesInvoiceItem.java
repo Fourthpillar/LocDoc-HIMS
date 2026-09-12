@@ -48,6 +48,26 @@ public class SalesInvoiceItem {
     @Column(name = "amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;
 
+    /**
+     * Soft reference to the doctor-authored line this sale fulfils
+     * (Master Spec §11.6/§8.7) - not a JPA relation, Prescription lives
+     * in the Doctor Module's own bounded context (same reasoning as
+     * MedicineBatch.sourcePurchaseItemId).
+     */
+    @Column(name = "prescription_line_id")
+    private Long prescriptionLineId;
+
+    /** Records a soft-stop override (allergy/high-alert/duplicate-therapy) - never silent, per §11.5. */
+    @Column(name = "override_reason", length = 300)
+    private String overrideReason;
+
+    /** Mandatory (enforced in SalesService, not the schema) only when the medicine is a scheduled drug (§11.5). */
+    @Column(name = "prescriber_name", length = 150)
+    private String prescriberName;
+
+    @Column(name = "prescriber_registration_number", length = 100)
+    private String prescriberRegistrationNumber;
+
     @Column(name = "created_date", nullable = false, updatable = false)
     private LocalDateTime createdDate;
 

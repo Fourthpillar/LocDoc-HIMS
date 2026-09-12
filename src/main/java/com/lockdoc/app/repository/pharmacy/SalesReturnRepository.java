@@ -13,14 +13,16 @@ import java.util.Optional;
 
 public interface SalesReturnRepository extends JpaRepository<SalesReturn, Long> {
 
-    Optional<SalesReturn> findByReturnNumber(String returnNumber);
+    Optional<SalesReturn> findByIdAndFacilityId(Long id, Long facilityId);
 
-    boolean existsByReturnNumber(String returnNumber);
+    boolean existsByFacilityIdAndReturnNumber(Long facilityId, String returnNumber);
 
     boolean existsBySalesInvoiceId(Long salesInvoiceId);
 
-    @Query("SELECT sr FROM SalesReturn sr WHERE LOWER(sr.returnNumber) LIKE LOWER(CONCAT('%', :search, '%'))")
-    Page<SalesReturn> search(@Param("search") String search, Pageable pageable);
+    @Query("SELECT sr FROM SalesReturn sr WHERE sr.facility.id = :facilityId AND LOWER(sr.returnNumber) LIKE LOWER(CONCAT('%', :search, '%'))")
+    Page<SalesReturn> search(@Param("facilityId") Long facilityId, @Param("search") String search, Pageable pageable);
 
-    List<SalesReturn> findByReturnDateBetweenAndStatus(LocalDate from, LocalDate to, String status);
+    Page<SalesReturn> findByFacilityId(Long facilityId, Pageable pageable);
+
+    List<SalesReturn> findByFacilityIdAndReturnDateBetweenAndStatus(Long facilityId, LocalDate from, LocalDate to, String status);
 }

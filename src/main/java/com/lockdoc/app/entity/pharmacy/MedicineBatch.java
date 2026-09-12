@@ -1,5 +1,7 @@
 package com.lockdoc.app.entity.pharmacy;
 
+import com.lockdoc.app.entity.Facility;
+import com.lockdoc.app.entity.Store;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -19,6 +21,16 @@ public class MedicineBatch {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "facility_id", nullable = false)
+    private Facility facility;
+
+    // Physical stock lives at a specific store within the facility - the
+    // stock ledger invariant (Master Spec §6) is per store × item × batch.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "store_id", nullable = false)
+    private Store store;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "medicine_id", nullable = false)

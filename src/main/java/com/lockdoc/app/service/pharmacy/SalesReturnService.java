@@ -1,9 +1,11 @@
 package com.lockdoc.app.service.pharmacy;
 
+import com.lockdoc.app.config.SecurityUtils;
 import com.lockdoc.app.dto.PageResponse;
 import com.lockdoc.app.dto.pharmacy.SalesReturnItemRequest;
 import com.lockdoc.app.dto.pharmacy.SalesReturnRequest;
 import com.lockdoc.app.dto.pharmacy.SalesReturnResponse;
+import com.lockdoc.app.entity.Facility;
 import com.lockdoc.app.entity.pharmacy.MedicineBatch;
 import com.lockdoc.app.entity.pharmacy.SalesInvoice;
 import com.lockdoc.app.entity.pharmacy.SalesInvoiceItem;
@@ -55,10 +57,11 @@ public class SalesReturnService {
     private final DocumentNumberService documentNumberService;
 
     public PageResponse<SalesReturnResponse> list(int page, int size, String search) {
+        Long facilityId = SecurityUtils.requireFacilityId();
         Pageable pageable = PageRequest.of(page, size);
         Page<SalesReturn> result = StringUtils.hasText(search)
-                ? salesReturnRepository.search(search, pageable)
-                : salesReturnRepository.findAll(pageable);
+                ? salesReturnRepository.search(facilityId, search, pageable)
+                : salesReturnRepository.findByFacilityId(facilityId, pageable);
         return PageResponse.of(result, SalesReturnResponse::toResponse);
     }
 
@@ -67,11 +70,17 @@ public class SalesReturnService {
     }
 
     public SalesReturnResponse create(SalesReturnRequest request, Long userId) {
-        SalesInvoice invoice = salesInvoiceRepository.findById(request.getSalesInvoiceId())
+        Long facilityId = SecurityUtils.requireFacilityId();
+
+        SalesInvoice invoice = salesInvoiceRepository.findByIdAndFacilityId(request.getSalesInvoiceId(), facilityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Sales invoice not found with id: " + request.getSalesInvoiceId()));
         if (!STATUS_POSTED.equals(invoice.getStatus())) {
             throw new InvalidDocumentStateException("Cannot return against a sales invoice with status: " + invoice.getStatus());
         }
+        // The return's facility is always the parent invoice's - never taken
+        // from the request, so a return can never be filed against a
+        // different tenant's invoice by mistake.
+        Facility facility = invoice.getFacility();
 
         BigDecimal totalAmount = BigDecimal.ZERO;
         List<SalesReturnItem> items = new ArrayList<>();
@@ -110,7 +119,8 @@ public class SalesReturnService {
         }
 
         SalesReturn salesReturn = SalesReturn.builder()
-                .returnNumber(documentNumberService.next(DOC_TYPE, PREFIX))
+                .facility(facility)
+                .returnNumber(documentNumberService.next(facilityId, DOC_TYPE, PREFIX))
                 .salesInvoice(invoice)
                 .returnDate(request.getReturnDate())
                 .reason(request.getReason())
@@ -128,6 +138,8 @@ public class SalesReturnService {
 
         for (SalesReturnItem item : salesReturn.getItems()) {
             stockLedgerEntryRepository.save(StockLedgerEntry.builder()
+                    .facility(facility)
+                    .store(invoice.getStore())
                     .medicine(item.getMedicine())
                     .medicineBatch(item.getMedicineBatch())
                     .txnType(TXN_TYPE_SALES_RETURN)
@@ -165,6 +177,8 @@ public class SalesReturnService {
             medicineBatchRepository.save(batch);
 
             stockLedgerEntryRepository.save(StockLedgerEntry.builder()
+                    .facility(salesReturn.getFacility())
+                    .store(salesReturn.getSalesInvoice().getStore())
                     .medicine(item.getMedicine())
                     .medicineBatch(batch)
                     .txnType(TXN_TYPE_SALES_RETURN)
@@ -183,7 +197,8 @@ public class SalesReturnService {
     }
 
     private SalesReturn findEntity(Long id) {
-        return salesReturnRepository.findById(id)
+        Long facilityId = SecurityUtils.requireFacilityId();
+        return salesReturnRepository.findByIdAndFacilityId(id, facilityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Sales return not found with id: " + id));
     }
 }

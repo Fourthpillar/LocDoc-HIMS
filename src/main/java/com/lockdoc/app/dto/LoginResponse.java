@@ -20,6 +20,9 @@ public class LoginResponse {
     private List<String> roles;
     private List<String> rights;
 
+    // null only for Super Admin - see AppUserPrincipal.
+    private Long facilityId;
+
     @Builder.Default
     private String tokenType = "Bearer";
 }

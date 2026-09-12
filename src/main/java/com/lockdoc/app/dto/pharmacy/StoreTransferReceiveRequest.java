@@ -1,0 +1,23 @@
+package com.lockdoc.app.dto.pharmacy;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.util.List;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+public class StoreTransferReceiveRequest {
+
+    @NotEmpty(message = "At least one item is required")
+    @Valid
+    private List<StoreTransferReceiveItemRequest> items;
+
+    private String discrepancyNotes;
+}

@@ -1,9 +1,12 @@
 package com.lockdoc.app.service.pharmacy;
 
+import com.lockdoc.app.config.SecurityUtils;
 import com.lockdoc.app.dto.PageResponse;
 import com.lockdoc.app.dto.pharmacy.PurchaseItemRequest;
 import com.lockdoc.app.dto.pharmacy.PurchaseRequest;
 import com.lockdoc.app.dto.pharmacy.PurchaseResponse;
+import com.lockdoc.app.entity.Facility;
+import com.lockdoc.app.entity.Store;
 import com.lockdoc.app.entity.pharmacy.Medicine;
 import com.lockdoc.app.entity.pharmacy.MedicineBatch;
 import com.lockdoc.app.entity.pharmacy.Purchase;
@@ -14,6 +17,7 @@ import com.lockdoc.app.entity.pharmacy.StockLedgerEntry;
 import com.lockdoc.app.entity.pharmacy.Supplier;
 import com.lockdoc.app.exception.InvalidDocumentStateException;
 import com.lockdoc.app.exception.ResourceNotFoundException;
+import com.lockdoc.app.repository.FacilityRepository;
 import com.lockdoc.app.repository.pharmacy.MedicineBatchRepository;
 import com.lockdoc.app.repository.pharmacy.MedicineRepository;
 import com.lockdoc.app.repository.pharmacy.PurchaseOrderItemRepository;
@@ -52,6 +56,9 @@ public class PurchaseService {
     private static final String TXN_TYPE_PURCHASE = "PURCHASE";
     private static final String REFERENCE_TYPE_PURCHASE = "PURCHASE";
 
+    /** The near-expiry warning window for the GRN guard (§11.3) - a business tuning knob, not yet facility-configurable. */
+    private static final int NEAR_EXPIRY_DAYS = 90;
+
     private final PurchaseRepository purchaseRepository;
     private final SupplierRepository supplierRepository;
     private final MedicineRepository medicineRepository;
@@ -59,13 +66,16 @@ public class PurchaseService {
     private final PurchaseOrderRepository purchaseOrderRepository;
     private final PurchaseOrderItemRepository purchaseOrderItemRepository;
     private final StockLedgerEntryRepository stockLedgerEntryRepository;
+    private final FacilityRepository facilityRepository;
+    private final StoreResolutionService storeResolutionService;
     private final DocumentNumberService documentNumberService;
 
     public PageResponse<PurchaseResponse> list(int page, int size, String search) {
+        Long facilityId = SecurityUtils.requireFacilityId();
         Pageable pageable = PageRequest.of(page, size);
         Page<Purchase> result = StringUtils.hasText(search)
-                ? purchaseRepository.search(search, pageable)
-                : purchaseRepository.findAll(pageable);
+                ? purchaseRepository.search(facilityId, search, pageable)
+                : purchaseRepository.findByFacilityId(facilityId, pageable);
         return PageResponse.of(result, PurchaseResponse::toResponse);
     }
 
@@ -74,16 +84,36 @@ public class PurchaseService {
     }
 
     public PurchaseResponse create(PurchaseRequest request, Long userId) {
-        Supplier supplier = supplierRepository.findById(request.getSupplierId())
+        Long facilityId = SecurityUtils.requireFacilityId();
+        Facility facility = facilityRepository.getReferenceById(facilityId);
+        Store store = storeResolutionService.resolveDefaultStore(facilityId);
+
+        Supplier supplier = supplierRepository.findByIdAndFacilityId(request.getSupplierId(), facilityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier not found with id: " + request.getSupplierId()));
 
         PurchaseOrder purchaseOrder = null;
         if (request.getPurchaseOrderId() != null) {
-            purchaseOrder = purchaseOrderRepository.findById(request.getPurchaseOrderId())
+            purchaseOrder = purchaseOrderRepository.findByIdAndFacilityId(request.getPurchaseOrderId(), facilityId)
                     .orElseThrow(() -> new ResourceNotFoundException("Purchase order not found with id: " + request.getPurchaseOrderId()));
             if (!PO_STATUS_APPROVED.equals(purchaseOrder.getStatus()) && !PO_STATUS_PARTIALLY_RECEIVED.equals(purchaseOrder.getStatus())) {
                 throw new InvalidDocumentStateException(
                         "Purchase order must be APPROVED or PARTIALLY_RECEIVED to receive against it, current status: " + purchaseOrder.getStatus());
+            }
+        }
+
+        // Expiry guard (§11.3) - hard reject already-expired stock at receipt; flag (non-blocking)
+        // anything expiring within NEAR_EXPIRY_DAYS so the receiving pharmacist sees it immediately
+        // rather than discovering it later via the expiry report.
+        java.time.LocalDate today = java.time.LocalDate.now();
+        List<String> nearExpiryWarnings = new ArrayList<>();
+        for (PurchaseItemRequest itemRequest : request.getItems()) {
+            if (!itemRequest.getExpiryDate().isAfter(today)) {
+                throw new InvalidDocumentStateException(
+                        "Cannot receive batch " + itemRequest.getBatchNo() + " - expiry date " + itemRequest.getExpiryDate() + " is not in the future");
+            }
+            if (!itemRequest.getExpiryDate().isAfter(today.plusDays(NEAR_EXPIRY_DAYS))) {
+                nearExpiryWarnings.add("Batch " + itemRequest.getBatchNo() + " expires " + itemRequest.getExpiryDate()
+                        + " - within " + NEAR_EXPIRY_DAYS + " days of receipt");
             }
         }
 
@@ -97,7 +127,9 @@ public class PurchaseService {
         BigDecimal balanceDue = totalAmount.subtract(amountPaid);
 
         Purchase purchase = Purchase.builder()
-                .grnNumber(documentNumberService.next(DOC_TYPE, PREFIX))
+                .facility(facility)
+                .store(store)
+                .grnNumber(documentNumberService.next(facilityId, DOC_TYPE, PREFIX))
                 .purchaseOrder(purchaseOrder)
                 .supplier(supplier)
                 .purchaseDate(request.getPurchaseDate())
@@ -114,13 +146,26 @@ public class PurchaseService {
                 .build();
 
         for (PurchaseItemRequest itemRequest : request.getItems()) {
-            Medicine medicine = medicineRepository.findById(itemRequest.getMedicineId())
+            Medicine medicine = medicineRepository.findByIdAndFacilityId(itemRequest.getMedicineId(), facilityId)
                     .orElseThrow(() -> new ResourceNotFoundException("Medicine not found with id: " + itemRequest.getMedicineId()));
 
             PurchaseOrderItem poItem = null;
             if (itemRequest.getPurchaseOrderItemId() != null) {
+                // purchaseOrder itself is already facility-verified above (or
+                // this branch is unreachable, see the check right below) - a
+                // findById here with no facility/parent check would otherwise
+                // let any facility's GRN mutate another facility's PO item's
+                // receivedQty by ID, a real cross-tenant write, not just a
+                // read leak - see Master Spec §5 principle 1.
+                if (purchaseOrder == null) {
+                    throw new InvalidDocumentStateException(
+                            "purchaseOrderItemId " + itemRequest.getPurchaseOrderItemId() + " was supplied without a purchaseOrderId on the GRN");
+                }
+                final PurchaseOrder ownerPo = purchaseOrder;
                 poItem = purchaseOrderItemRepository.findById(itemRequest.getPurchaseOrderItemId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Purchase order item not found with id: " + itemRequest.getPurchaseOrderItemId()));
+                        .filter(pi -> pi.getPurchaseOrder().getId().equals(ownerPo.getId()))
+                        .orElseThrow(() -> new ResourceNotFoundException(
+                                "Purchase order item " + itemRequest.getPurchaseOrderItemId() + " does not belong to purchase order " + ownerPo.getPoNumber()));
             }
 
             items.add(PurchaseItem.builder()
@@ -144,9 +189,11 @@ public class PurchaseService {
         purchase = purchaseRepository.save(purchase);
 
         for (PurchaseItem item : purchase.getItems()) {
-            MedicineBatch batch = upsertBatch(item, supplier);
+            MedicineBatch batch = upsertBatch(item, facility, store, supplier);
 
             stockLedgerEntryRepository.save(StockLedgerEntry.builder()
+                    .facility(facility)
+                    .store(store)
                     .medicine(item.getMedicine())
                     .medicineBatch(batch)
                     .txnType(TXN_TYPE_PURCHASE)
@@ -170,7 +217,7 @@ public class PurchaseService {
             recomputePurchaseOrderStatus(purchaseOrder);
         }
 
-        return PurchaseResponse.toResponse(purchase);
+        return PurchaseResponse.toResponse(purchase, nearExpiryWarnings);
     }
 
     public PurchaseResponse cancel(Long id) {
@@ -181,7 +228,8 @@ public class PurchaseService {
 
         // Validate ALL lines first so a mid-way failure never leaves a partial reversal
         for (PurchaseItem item : purchase.getItems()) {
-            MedicineBatch batch = medicineBatchRepository.findByMedicineIdAndBatchNo(item.getMedicine().getId(), item.getBatchNo())
+            MedicineBatch batch = medicineBatchRepository.findByStoreIdAndMedicineIdAndBatchNo(
+                            purchase.getStore().getId(), item.getMedicine().getId(), item.getBatchNo())
                     .orElseThrow(() -> new ResourceNotFoundException("Batch not found for medicine/batch: " + item.getBatchNo()));
             if (batch.getQuantityOnHand() < item.getReceivedQty()) {
                 throw new InvalidDocumentStateException(
@@ -191,13 +239,16 @@ public class PurchaseService {
         }
 
         for (PurchaseItem item : purchase.getItems()) {
-            MedicineBatch batch = medicineBatchRepository.findByMedicineIdAndBatchNo(item.getMedicine().getId(), item.getBatchNo())
+            MedicineBatch batch = medicineBatchRepository.findByStoreIdAndMedicineIdAndBatchNo(
+                            purchase.getStore().getId(), item.getMedicine().getId(), item.getBatchNo())
                     .orElseThrow(() -> new ResourceNotFoundException("Batch not found for medicine/batch: " + item.getBatchNo()));
 
             batch.setQuantityOnHand(batch.getQuantityOnHand() - item.getReceivedQty());
             medicineBatchRepository.save(batch);
 
             stockLedgerEntryRepository.save(StockLedgerEntry.builder()
+                    .facility(purchase.getFacility())
+                    .store(purchase.getStore())
                     .medicine(item.getMedicine())
                     .medicineBatch(batch)
                     .txnType(TXN_TYPE_PURCHASE)
@@ -227,12 +278,15 @@ public class PurchaseService {
         return PurchaseResponse.toResponse(purchase);
     }
 
-    private MedicineBatch upsertBatch(PurchaseItem item, Supplier supplier) {
-        MedicineBatch batch = medicineBatchRepository.findByMedicineIdAndBatchNo(item.getMedicine().getId(), item.getBatchNo())
+    private MedicineBatch upsertBatch(PurchaseItem item, Facility facility, Store store, Supplier supplier) {
+        MedicineBatch batch = medicineBatchRepository.findByStoreIdAndMedicineIdAndBatchNo(
+                        store.getId(), item.getMedicine().getId(), item.getBatchNo())
                 .orElse(null);
 
         if (batch == null) {
             batch = MedicineBatch.builder()
+                    .facility(facility)
+                    .store(store)
                     .medicine(item.getMedicine())
                     .batchNo(item.getBatchNo())
                     .expiryDate(item.getExpiryDate())
@@ -280,7 +334,8 @@ public class PurchaseService {
     }
 
     private Purchase findEntity(Long id) {
-        return purchaseRepository.findById(id)
+        Long facilityId = SecurityUtils.requireFacilityId();
+        return purchaseRepository.findByIdAndFacilityId(id, facilityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Purchase not found with id: " + id));
     }
 }

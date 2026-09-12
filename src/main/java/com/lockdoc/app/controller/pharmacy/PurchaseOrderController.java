@@ -1,17 +1,15 @@
 package com.lockdoc.app.controller.pharmacy;
 
+import com.lockdoc.app.config.AppUserPrincipal;
 import com.lockdoc.app.dto.PageResponse;
 import com.lockdoc.app.dto.pharmacy.PurchaseOrderRequest;
 import com.lockdoc.app.dto.pharmacy.PurchaseOrderResponse;
-import com.lockdoc.app.entity.User;
-import com.lockdoc.app.repository.UserRepository;
 import com.lockdoc.app.service.pharmacy.PurchaseOrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -20,10 +18,9 @@ import org.springframework.web.bind.annotation.*;
 public class PurchaseOrderController {
 
     private final PurchaseOrderService purchaseOrderService;
-    private final UserRepository userRepository;
 
     @GetMapping
-    @PreAuthorize("hasAuthority('PHARMACY_PURCHASE_ORDER_CREATE')")
+    @PreAuthorize("hasAnyAuthority('PHARMACY_PURCHASE_ORDER_CREATE', 'PHARMACY_PURCHASE_ORDER_APPROVE')")
     public ResponseEntity<PageResponse<PurchaseOrderResponse>> list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -32,7 +29,7 @@ public class PurchaseOrderController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('PHARMACY_PURCHASE_ORDER_CREATE')")
+    @PreAuthorize("hasAnyAuthority('PHARMACY_PURCHASE_ORDER_CREATE', 'PHARMACY_PURCHASE_ORDER_APPROVE')")
     public ResponseEntity<PurchaseOrderResponse> get(@PathVariable Long id) {
         return ResponseEntity.ok(purchaseOrderService.get(id));
     }
@@ -40,25 +37,20 @@ public class PurchaseOrderController {
     @PostMapping
     @PreAuthorize("hasAuthority('PHARMACY_PURCHASE_ORDER_CREATE')")
     public ResponseEntity<PurchaseOrderResponse> create(@Valid @RequestBody PurchaseOrderRequest request,
-                                                          @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(purchaseOrderService.create(request, currentUserId(userDetails)));
+                                                          @AuthenticationPrincipal AppUserPrincipal principal) {
+        return ResponseEntity.ok(purchaseOrderService.create(request, principal.getUserId()));
     }
 
     @PostMapping("/{id}/approve")
     @PreAuthorize("hasAuthority('PHARMACY_PURCHASE_ORDER_APPROVE')")
     public ResponseEntity<PurchaseOrderResponse> approve(@PathVariable Long id,
-                                                           @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(purchaseOrderService.approve(id, currentUserId(userDetails)));
+                                                           @AuthenticationPrincipal AppUserPrincipal principal) {
+        return ResponseEntity.ok(purchaseOrderService.approve(id, principal.getUserId()));
     }
 
     @PostMapping("/{id}/cancel")
     @PreAuthorize("hasAuthority('PHARMACY_PURCHASE_ORDER_APPROVE')")
     public ResponseEntity<PurchaseOrderResponse> cancel(@PathVariable Long id) {
         return ResponseEntity.ok(purchaseOrderService.cancel(id));
-    }
-
-    private Long currentUserId(UserDetails userDetails) {
-        User user = userRepository.findByUsername(userDetails.getUsername()).orElseThrow();
-        return user.getId();
     }
 }

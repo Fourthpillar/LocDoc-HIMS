@@ -33,6 +33,7 @@ public class SupplierResponse {
     private String supplierType;
     private String drugLicenseNo;
     private Boolean active;
+    private Boolean accepted;
     private LocalDateTime createdDate;
     private LocalDateTime updatedDate;
 
@@ -55,6 +56,7 @@ public class SupplierResponse {
                 .supplierType(s.getSupplierType())
                 .drugLicenseNo(s.getDrugLicenseNo())
                 .active(s.getActive())
+                .accepted(s.getAccepted())
                 .createdDate(s.getCreatedDate())
                 .updatedDate(s.getUpdatedDate())
                 .build();

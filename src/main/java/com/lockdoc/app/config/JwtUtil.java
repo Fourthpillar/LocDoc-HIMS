@@ -32,15 +32,23 @@ public class JwtUtil {
         return signingKey;
     }
 
-    public String generateToken(String username, List<String> roles, List<String> rights) {
+    public String generateToken(String username, List<String> roles, List<String> rights, Long facilityId) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + jwtProperties.getExpirationMs());
 
-        return Jwts.builder()
+        // facilityId is omitted (not just null) for Super Admin, who is
+        // cross-facility - see AppUserPrincipal/SecurityUtils, which is what
+        // actually enforces the boundary server-side on every request; this
+        // claim is a convenience for the client, not itself a trust boundary.
+        var builder = Jwts.builder()
                 .subject(username)
                 .issuer(jwtProperties.getIssuer())
                 .claim("roles", roles)
-                .claim("rights", rights)
+                .claim("rights", rights);
+        if (facilityId != null) {
+            builder.claim("facilityId", facilityId);
+        }
+        return builder
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(getSigningKey())

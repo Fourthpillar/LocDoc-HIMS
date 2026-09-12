@@ -14,16 +14,21 @@ import java.util.Optional;
 
 public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
 
-    Optional<Purchase> findByGrnNumber(String grnNumber);
+    Optional<Purchase> findByIdAndFacilityId(Long id, Long facilityId);
 
-    boolean existsByGrnNumber(String grnNumber);
+    boolean existsByFacilityIdAndGrnNumber(Long facilityId, String grnNumber);
 
-    boolean existsByPurchaseOrderId(Long purchaseOrderId);
+    boolean existsByFacilityIdAndPurchaseOrderId(Long facilityId, Long purchaseOrderId);
 
-    @Query("SELECT p FROM Purchase p WHERE LOWER(p.grnNumber) LIKE LOWER(CONCAT('%', :search, '%'))")
-    Page<Purchase> search(@Param("search") String search, Pageable pageable);
+    @Query("SELECT p FROM Purchase p WHERE p.facility.id = :facilityId AND LOWER(p.grnNumber) LIKE LOWER(CONCAT('%', :search, '%'))")
+    Page<Purchase> search(@Param("facilityId") Long facilityId, @Param("search") String search, Pageable pageable);
 
-    List<Purchase> findByPurchaseDateBetweenAndStatus(LocalDate from, LocalDate to, String status);
+    Page<Purchase> findByFacilityId(Long facilityId, Pageable pageable);
 
-    List<Purchase> findByBalanceDueGreaterThanAndStatusOrderByDueDateAsc(BigDecimal balanceDue, String status);
+    List<Purchase> findByFacilityIdAndPurchaseDateBetweenAndStatus(Long facilityId, LocalDate from, LocalDate to, String status);
+
+    List<Purchase> findByFacilityIdAndBalanceDueGreaterThanAndStatusOrderByDueDateAsc(Long facilityId, BigDecimal balanceDue, String status);
+
+    /** Supplier ledger (§17.7 #32) - every GRN against this supplier, oldest first. */
+    List<Purchase> findByFacilityIdAndSupplierIdOrderByPurchaseDateAsc(Long facilityId, Long supplierId);
 }

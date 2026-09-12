@@ -18,7 +18,7 @@ public class SupplierController {
     private final SupplierService supplierService;
 
     @GetMapping
-    @PreAuthorize("hasAuthority('PHARMACY_SUPPLIER_MANAGE')")
+    @PreAuthorize("hasAnyAuthority('PHARMACY_SUPPLIER_MANAGE', 'PHARMACY_SUPPLIER_ACCEPT')")
     public ResponseEntity<PageResponse<SupplierResponse>> list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -27,7 +27,7 @@ public class SupplierController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('PHARMACY_SUPPLIER_MANAGE')")
+    @PreAuthorize("hasAnyAuthority('PHARMACY_SUPPLIER_MANAGE', 'PHARMACY_SUPPLIER_ACCEPT')")
     public ResponseEntity<SupplierResponse> get(@PathVariable Long id) {
         return ResponseEntity.ok(supplierService.get(id));
     }
@@ -49,5 +49,11 @@ public class SupplierController {
     public ResponseEntity<Void> deactivate(@PathVariable Long id) {
         supplierService.deactivate(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/accept")
+    @PreAuthorize("hasAuthority('PHARMACY_SUPPLIER_ACCEPT')")
+    public ResponseEntity<SupplierResponse> accept(@PathVariable Long id) {
+        return ResponseEntity.ok(supplierService.accept(id));
     }
 }

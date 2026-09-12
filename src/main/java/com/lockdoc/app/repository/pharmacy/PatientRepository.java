@@ -11,14 +11,16 @@ import java.util.Optional;
 
 public interface PatientRepository extends JpaRepository<Patient, Long> {
 
-    Optional<Patient> findByMrn(String mrn);
+    Optional<Patient> findByIdAndFacilityId(Long id, Long facilityId);
 
-    boolean existsByMrn(String mrn);
+    Optional<Patient> findByFacilityIdAndMrn(Long facilityId, String mrn);
 
-    Page<Patient> findByActiveTrue(Pageable pageable);
+    boolean existsByFacilityIdAndMrn(Long facilityId, String mrn);
 
-    @Query("SELECT p FROM Patient p WHERE p.active = true AND "
+    Page<Patient> findByFacilityIdAndActiveTrue(Long facilityId, Pageable pageable);
+
+    @Query("SELECT p FROM Patient p WHERE p.facility.id = :facilityId AND p.active = true AND "
             + "(LOWER(p.fullName) LIKE LOWER(CONCAT('%', :search, '%')) "
             + "OR LOWER(p.mrn) LIKE LOWER(CONCAT('%', :search, '%')))")
-    Page<Patient> search(@Param("search") String search, Pageable pageable);
+    Page<Patient> search(@Param("facilityId") Long facilityId, @Param("search") String search, Pageable pageable);
 }

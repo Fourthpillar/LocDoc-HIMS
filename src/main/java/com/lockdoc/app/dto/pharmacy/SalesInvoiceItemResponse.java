@@ -26,6 +26,10 @@ public class SalesInvoiceItemResponse {
     private BigDecimal taxPercent;
     private BigDecimal discountAmount;
     private BigDecimal amount;
+    private Long prescriptionLineId;
+    private String overrideReason;
+    private String prescriberName;
+    private String prescriberRegistrationNumber;
 
     public static SalesInvoiceItemResponse toResponse(SalesInvoiceItem i) {
         return SalesInvoiceItemResponse.builder()
@@ -39,6 +43,10 @@ public class SalesInvoiceItemResponse {
                 .taxPercent(i.getTaxPercent())
                 .discountAmount(i.getDiscountAmount())
                 .amount(i.getAmount())
+                .prescriptionLineId(i.getPrescriptionLineId())
+                .overrideReason(i.getOverrideReason())
+                .prescriberName(i.getPrescriberName())
+                .prescriberRegistrationNumber(i.getPrescriberRegistrationNumber())
                 .build();
     }
 }

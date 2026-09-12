@@ -42,13 +42,15 @@ public class AuthService {
                 .distinct()
                 .collect(Collectors.toList());
 
-        String token = jwtUtil.generateToken(user.getUsername(), roleCodes, rightCodes);
+        Long facilityId = user.getFacility() != null ? user.getFacility().getId() : null;
+        String token = jwtUtil.generateToken(user.getUsername(), roleCodes, rightCodes, facilityId);
 
         return LoginResponse.builder()
                 .token(token)
                 .username(user.getUsername())
                 .roles(roleCodes)
                 .rights(rightCodes)
+                .facilityId(facilityId)
                 .build();
     }
 }

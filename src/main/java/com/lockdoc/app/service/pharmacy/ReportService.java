@@ -1,5 +1,6 @@
 package com.lockdoc.app.service.pharmacy;
 
+import com.lockdoc.app.config.SecurityUtils;
 import com.lockdoc.app.dto.PageResponse;
 import com.lockdoc.app.dto.pharmacy.MedicineBatchResponse;
 import com.lockdoc.app.dto.pharmacy.MedicineSalesReportRow;
@@ -52,8 +53,9 @@ public class ReportService {
     }
 
     public List<MedicineBatchResponse> expiryReport(int withinDays) {
+        Long facilityId = SecurityUtils.requireFacilityId();
         LocalDate cutoff = LocalDate.now().plusDays(withinDays);
-        return medicineBatchRepository.findExpiringBatches(cutoff).stream()
+        return medicineBatchRepository.findExpiringBatches(facilityId, cutoff).stream()
                 .map(MedicineBatchResponse::toResponse)
                 .toList();
     }
@@ -63,25 +65,29 @@ public class ReportService {
     }
 
     public List<SalesInvoiceResponse> salesRegister(LocalDate from, LocalDate to) {
-        return salesInvoiceRepository.findBySaleDateBetweenAndStatus(from, to, STATUS_POSTED).stream()
+        Long facilityId = SecurityUtils.requireFacilityId();
+        return salesInvoiceRepository.findByFacilityIdAndSaleDateBetweenAndStatus(facilityId, from, to, STATUS_POSTED).stream()
                 .map(SalesInvoiceResponse::toResponse)
                 .toList();
     }
 
     public List<PurchaseResponse> purchaseRegister(LocalDate from, LocalDate to) {
-        return purchaseRepository.findByPurchaseDateBetweenAndStatus(from, to, STATUS_POSTED).stream()
+        Long facilityId = SecurityUtils.requireFacilityId();
+        return purchaseRepository.findByFacilityIdAndPurchaseDateBetweenAndStatus(facilityId, from, to, STATUS_POSTED).stream()
                 .map(PurchaseResponse::toResponse)
                 .toList();
     }
 
     public List<SalesReturnResponse> salesReturnRegister(LocalDate from, LocalDate to) {
-        return salesReturnRepository.findByReturnDateBetweenAndStatus(from, to, STATUS_POSTED).stream()
+        Long facilityId = SecurityUtils.requireFacilityId();
+        return salesReturnRepository.findByFacilityIdAndReturnDateBetweenAndStatus(facilityId, from, to, STATUS_POSTED).stream()
                 .map(SalesReturnResponse::toResponse)
                 .toList();
     }
 
     public List<PurchaseOrderResponse> purchaseOrderReport(LocalDate from, LocalDate to) {
-        return purchaseOrderRepository.findByOrderDateBetween(from, to).stream()
+        Long facilityId = SecurityUtils.requireFacilityId();
+        return purchaseOrderRepository.findByFacilityIdAndOrderDateBetween(facilityId, from, to).stream()
                 .map(PurchaseOrderResponse::toResponse)
                 .toList();
     }
@@ -93,7 +99,8 @@ public class ReportService {
      * balanceDue (see V7 migration).
      */
     public List<PurchaseResponse> purchaseDuesReport() {
-        return purchaseRepository.findByBalanceDueGreaterThanAndStatusOrderByDueDateAsc(BigDecimal.ZERO, STATUS_POSTED).stream()
+        Long facilityId = SecurityUtils.requireFacilityId();
+        return purchaseRepository.findByFacilityIdAndBalanceDueGreaterThanAndStatusOrderByDueDateAsc(facilityId, BigDecimal.ZERO, STATUS_POSTED).stream()
                 .map(PurchaseResponse::toResponse)
                 .toList();
     }
@@ -103,11 +110,13 @@ public class ReportService {
      * range - the item-level equivalent of the legacy "MedicineSalesReport".
      */
     public List<MedicineSalesReportRow> medicineSalesReport(LocalDate from, LocalDate to) {
+        Long facilityId = SecurityUtils.requireFacilityId();
+
         Map<Long, Medicine> medicinesById = new HashMap<>();
-        medicineRepository.findAll().forEach(m -> medicinesById.put(m.getId(), m));
+        medicineRepository.findByFacilityIdAndActiveTrue(facilityId).forEach(m -> medicinesById.put(m.getId(), m));
 
         Map<Long, BigDecimal[]> returnsByMedicine = new HashMap<>();
-        for (Object[] row : salesReturnItemRepository.aggregateReturnsByMedicine(from, to)) {
+        for (Object[] row : salesReturnItemRepository.aggregateReturnsByMedicine(facilityId, from, to)) {
             Long medicineId = (Long) row[0];
             Long qty = (Long) row[1];
             BigDecimal amount = (BigDecimal) row[2];
@@ -115,7 +124,7 @@ public class ReportService {
         }
 
         List<MedicineSalesReportRow> rows = new ArrayList<>();
-        for (Object[] row : salesInvoiceItemRepository.aggregateSalesByMedicine(from, to)) {
+        for (Object[] row : salesInvoiceItemRepository.aggregateSalesByMedicine(facilityId, from, to)) {
             Long medicineId = (Long) row[0];
             Long qtySold = (Long) row[1];
             BigDecimal grossAmount = (BigDecimal) row[2];
@@ -158,7 +167,8 @@ public class ReportService {
      * cover since they carry no rate/MRP/value or category/manufacturer.
      */
     public List<StockDetailReportRow> stockDetailReport() {
-        List<MedicineBatch> batches = medicineBatchRepository.findByQuantityOnHandGreaterThanOrderByMedicine_NameAsc(0);
+        Long facilityId = SecurityUtils.requireFacilityId();
+        List<MedicineBatch> batches = medicineBatchRepository.findByFacilityIdAndQuantityOnHandGreaterThanOrderByMedicine_NameAsc(facilityId, 0);
         return batches.stream()
                 .map(b -> {
                     Medicine m = b.getMedicine();

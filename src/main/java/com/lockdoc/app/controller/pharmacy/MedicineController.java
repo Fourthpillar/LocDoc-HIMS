@@ -3,12 +3,15 @@ package com.lockdoc.app.controller.pharmacy;
 import com.lockdoc.app.dto.PageResponse;
 import com.lockdoc.app.dto.pharmacy.MedicineRequest;
 import com.lockdoc.app.dto.pharmacy.MedicineResponse;
+import com.lockdoc.app.dto.pharmacy.MedicineStockResponse;
 import com.lockdoc.app.service.pharmacy.MedicineService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/pharmacy/medicines")
@@ -30,6 +33,13 @@ public class MedicineController {
     @PreAuthorize("hasAuthority('PHARMACY_INVENTORY_READ')")
     public ResponseEntity<MedicineResponse> get(@PathVariable Long id) {
         return ResponseEntity.ok(medicineService.get(id));
+    }
+
+    /** Generic substitution (Master Spec §11.5) - other active medicines sharing this one's generic name, with stock. */
+    @GetMapping("/{id}/generic-alternatives")
+    @PreAuthorize("hasAuthority('PHARMACY_INVENTORY_READ')")
+    public ResponseEntity<List<MedicineStockResponse>> genericAlternatives(@PathVariable Long id) {
+        return ResponseEntity.ok(medicineService.genericAlternatives(id));
     }
 
     @PostMapping

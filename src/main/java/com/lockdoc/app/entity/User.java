@@ -20,6 +20,12 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Nullable only for Super Admin, the one role scoped across every
+    // facility rather than to one - see Master Spec §4, AppUserPrincipal.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "facility_id")
+    private Facility facility;
+
     @Column(name = "username", nullable = false, unique = true, length = 50)
     private String username;
 
@@ -39,6 +45,11 @@ public class User {
     @Column(name = "account_non_locked", nullable = false)
     @Builder.Default
     private Boolean accountNonLocked = true;
+
+    /** Master Spec §17.7 #33a - Hospital/Clinic Admin can force a Receptionist/Pharmacist to set a new password on next login. */
+    @Column(name = "must_change_password", nullable = false)
+    @Builder.Default
+    private Boolean mustChangePassword = false;
 
     @Column(name = "created_date", nullable = false, updatable = false)
     private LocalDateTime createdDate;

@@ -13,12 +13,14 @@ import java.util.Optional;
 
 public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, Long> {
 
-    Optional<PurchaseOrder> findByPoNumber(String poNumber);
+    Optional<PurchaseOrder> findByIdAndFacilityId(Long id, Long facilityId);
 
-    boolean existsByPoNumber(String poNumber);
+    boolean existsByFacilityIdAndPoNumber(Long facilityId, String poNumber);
 
-    @Query("SELECT po FROM PurchaseOrder po WHERE LOWER(po.poNumber) LIKE LOWER(CONCAT('%', :search, '%'))")
-    Page<PurchaseOrder> search(@Param("search") String search, Pageable pageable);
+    @Query("SELECT po FROM PurchaseOrder po WHERE po.facility.id = :facilityId AND LOWER(po.poNumber) LIKE LOWER(CONCAT('%', :search, '%'))")
+    Page<PurchaseOrder> search(@Param("facilityId") Long facilityId, @Param("search") String search, Pageable pageable);
 
-    List<PurchaseOrder> findByOrderDateBetween(LocalDate from, LocalDate to);
+    Page<PurchaseOrder> findByFacilityId(Long facilityId, Pageable pageable);
+
+    List<PurchaseOrder> findByFacilityIdAndOrderDateBetween(Long facilityId, LocalDate from, LocalDate to);
 }

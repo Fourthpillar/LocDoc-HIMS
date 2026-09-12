@@ -7,5 +7,5 @@ import java.util.List;
 
 public interface StockLedgerEntryRepository extends JpaRepository<StockLedgerEntry, Long> {
 
-    List<StockLedgerEntry> findByReferenceTypeAndReferenceId(String referenceType, Long referenceId);
+    List<StockLedgerEntry> findByFacilityIdAndReferenceTypeAndReferenceId(Long facilityId, String referenceType, Long referenceId);
 }

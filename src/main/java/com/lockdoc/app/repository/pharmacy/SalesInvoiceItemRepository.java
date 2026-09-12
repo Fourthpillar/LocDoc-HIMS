@@ -14,7 +14,7 @@ public interface SalesInvoiceItemRepository extends JpaRepository<SalesInvoiceIt
 
     @Query("SELECT sii.medicine.id, SUM(sii.qty), SUM(sii.rate * sii.qty), SUM(sii.discountAmount), SUM(sii.amount) "
             + "FROM SalesInvoiceItem sii JOIN sii.salesInvoice si "
-            + "WHERE si.saleDate BETWEEN :from AND :to AND si.status = 'POSTED' "
+            + "WHERE si.facility.id = :facilityId AND si.saleDate BETWEEN :from AND :to AND si.status = 'POSTED' "
             + "GROUP BY sii.medicine.id")
-    List<Object[]> aggregateSalesByMedicine(@Param("from") LocalDate from, @Param("to") LocalDate to);
+    List<Object[]> aggregateSalesByMedicine(@Param("facilityId") Long facilityId, @Param("from") LocalDate from, @Param("to") LocalDate to);
 }

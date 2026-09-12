@@ -1,5 +1,6 @@
 package com.lockdoc.app.entity.pharmacy;
 
+import com.lockdoc.app.entity.Facility;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -19,7 +20,14 @@ public class Patient {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "mrn", nullable = false, unique = true, length = 30)
+    // One Patient row per facility serves both OP and Pharmacy at that
+    // facility (Master Spec §6 invariant 7) - not global across facilities.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "facility_id", nullable = false)
+    private Facility facility;
+
+    // Was globally unique (see V3); now unique per facility - see V9.
+    @Column(name = "mrn", nullable = false, length = 30)
     private String mrn;
 
     @Column(name = "full_name", nullable = false, length = 150)
@@ -36,6 +44,17 @@ public class Patient {
 
     @Column(name = "address", length = 300)
     private String address;
+
+    /** Area-wise consultations report (§17.7 #12a, V47) - nullable, existing patients aren't force-backfilled. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "area_id")
+    private com.lockdoc.app.entity.op.Area area;
+
+    // Free-text, comma-separated - read by both the OP Module's
+    // PatientHeaderBar allergy banner and Pharmacy's dispensing safety
+    // checks (Master Spec §11.5, §17.6) - one column, one source of truth.
+    @Column(name = "allergies", length = 500)
+    private String allergies;
 
     @Column(name = "active", nullable = false)
     @Builder.Default

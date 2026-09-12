@@ -42,4 +42,9 @@ public class MedicineRequest {
     private Integer reorderLevel;
 
     private Boolean isScheduleDrug;
+
+    /** OTC/H/H1/X/NARCOTIC — drives mandatory prescriber capture at dispensing (Master Spec §11.5). */
+    private String drugSchedule;
+
+    private Boolean highAlert;
 }

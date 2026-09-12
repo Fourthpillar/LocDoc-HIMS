@@ -1,5 +1,7 @@
 package com.lockdoc.app.entity.pharmacy;
 
+import com.lockdoc.app.entity.Facility;
+import com.lockdoc.app.entity.Store;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -22,7 +24,17 @@ public class Purchase {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "grn_number", nullable = false, unique = true, length = 30)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "facility_id", nullable = false)
+    private Facility facility;
+
+    // The store the goods were received into.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "store_id", nullable = false)
+    private Store store;
+
+    // Was globally unique (see V3); now unique per facility - see V9.
+    @Column(name = "grn_number", nullable = false, length = 30)
     private String grnNumber;
 
     @ManyToOne(fetch = FetchType.LAZY)

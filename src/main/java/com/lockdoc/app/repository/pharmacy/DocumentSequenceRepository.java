@@ -13,6 +13,6 @@ import java.util.Optional;
 public interface DocumentSequenceRepository extends JpaRepository<DocumentSequence, DocumentSequenceId> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT ds FROM DocumentSequence ds WHERE ds.docType = :docType AND ds.year = :year")
-    Optional<DocumentSequence> findForUpdate(@Param("docType") String docType, @Param("year") Integer year);
+    @Query("SELECT ds FROM DocumentSequence ds WHERE ds.facilityId = :facilityId AND ds.docType = :docType AND ds.year = :year")
+    Optional<DocumentSequence> findForUpdate(@Param("facilityId") Long facilityId, @Param("docType") String docType, @Param("year") Integer year);
 }

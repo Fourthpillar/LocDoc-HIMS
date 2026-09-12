@@ -1,5 +1,6 @@
 package com.lockdoc.app.service;
 
+import com.lockdoc.app.config.AppUserPrincipal;
 import com.lockdoc.app.entity.Right;
 import com.lockdoc.app.entity.Role;
 import com.lockdoc.app.entity.User;
@@ -34,12 +35,18 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             }
         }
 
-        return org.springframework.security.core.userdetails.User.builder()
-                .username(user.getUsername())
-                .password(user.getPassword())
-                .disabled(!Boolean.TRUE.equals(user.getEnabled()))
-                .accountLocked(!Boolean.TRUE.equals(user.getAccountNonLocked()))
-                .authorities(authorities)
-                .build();
+        // AppUserPrincipal (not Spring's default User) so every downstream
+        // request carries userId + facilityId without re-querying the DB -
+        // see SecurityUtils, which is how every facility-scoped service
+        // gets its tenant boundary.
+        return new AppUserPrincipal(
+                user.getUsername(),
+                user.getPassword(),
+                Boolean.TRUE.equals(user.getEnabled()),
+                Boolean.TRUE.equals(user.getAccountNonLocked()),
+                authorities,
+                user.getId(),
+                user.getFacility() != null ? user.getFacility().getId() : null
+        );
     }
 }

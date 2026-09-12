@@ -28,6 +28,8 @@ public class MedicineResponse {
     private BigDecimal taxPercent;
     private Integer reorderLevel;
     private Boolean isScheduleDrug;
+    private String drugSchedule;
+    private Boolean highAlert;
     private Boolean active;
     private LocalDateTime createdDate;
     private LocalDateTime updatedDate;
@@ -45,6 +47,8 @@ public class MedicineResponse {
                 .taxPercent(m.getTaxPercent())
                 .reorderLevel(m.getReorderLevel())
                 .isScheduleDrug(m.getIsScheduleDrug())
+                .drugSchedule(m.getDrugSchedule())
+                .highAlert(m.getHighAlert())
                 .active(m.getActive())
                 .createdDate(m.getCreatedDate())
                 .updatedDate(m.getUpdatedDate())

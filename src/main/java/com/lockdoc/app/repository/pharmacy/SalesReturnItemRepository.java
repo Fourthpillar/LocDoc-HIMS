@@ -19,7 +19,7 @@ public interface SalesReturnItemRepository extends JpaRepository<SalesReturnItem
 
     @Query("SELECT sri.medicine.id, SUM(sri.qty), SUM(sri.amount) "
             + "FROM SalesReturnItem sri JOIN sri.salesReturn sr "
-            + "WHERE sr.returnDate BETWEEN :from AND :to AND sr.status = 'POSTED' "
+            + "WHERE sr.facility.id = :facilityId AND sr.returnDate BETWEEN :from AND :to AND sr.status = 'POSTED' "
             + "GROUP BY sri.medicine.id")
-    List<Object[]> aggregateReturnsByMedicine(@Param("from") LocalDate from, @Param("to") LocalDate to);
+    List<Object[]> aggregateReturnsByMedicine(@Param("facilityId") Long facilityId, @Param("from") LocalDate from, @Param("to") LocalDate to);
 }

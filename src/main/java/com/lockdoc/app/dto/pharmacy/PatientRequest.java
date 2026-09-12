@@ -24,4 +24,10 @@ public class PatientRequest {
     private LocalDate dateOfBirth;
 
     private String address;
+
+    /** Free-text, comma-separated (Master Spec §6/§11.5/§17.6). */
+    private String allergies;
+
+    /** Area-wise consultations report (§17.7 #12a) - optional. */
+    private Long areaId;
 }

@@ -15,6 +15,7 @@ import java.io.Serializable;
 @EqualsAndHashCode
 public class DocumentSequenceId implements Serializable {
 
+    private Long facilityId;
     private String docType;
     private Integer year;
 }

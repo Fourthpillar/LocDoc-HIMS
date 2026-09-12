@@ -35,4 +35,20 @@ public class SalesInvoiceItemRequest {
 
     @PositiveOrZero(message = "Discount amount must not be negative")
     private BigDecimal discountAmount;
+
+    /** Soft reference to the PrescriptionLine this line fulfils (Master Spec §11.6), when dispensing against one. */
+    private Long prescriptionLineId;
+
+    /**
+     * A dispensing user's reason for proceeding past a soft-stop warning
+     * (allergy/high-alert/duplicate-therapy, §11.5) already surfaced by a
+     * prior SafetyCheckException on this same line - present only on the
+     * resubmitted, confirmed request.
+     */
+    private String overrideReason;
+
+    /** Mandatory when the medicine is a scheduled drug (Medicine.requiresPrescriberCapture(), §11.5) - validated in SalesService. */
+    private String prescriberName;
+
+    private String prescriberRegistrationNumber;
 }

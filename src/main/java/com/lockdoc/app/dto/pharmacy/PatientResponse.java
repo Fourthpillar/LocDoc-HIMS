@@ -24,6 +24,9 @@ public class PatientResponse {
     private String gender;
     private LocalDate dateOfBirth;
     private String address;
+    private String allergies;
+    private Long areaId;
+    private String areaLabel;
     private Boolean active;
     private LocalDateTime createdDate;
     private LocalDateTime updatedDate;
@@ -37,6 +40,9 @@ public class PatientResponse {
                 .gender(p.getGender())
                 .dateOfBirth(p.getDateOfBirth())
                 .address(p.getAddress())
+                .allergies(p.getAllergies())
+                .areaId(p.getArea() != null ? p.getArea().getId() : null)
+                .areaLabel(p.getArea() != null ? p.getArea().displayLabel() : null)
                 .active(p.getActive())
                 .createdDate(p.getCreatedDate())
                 .updatedDate(p.getUpdatedDate())

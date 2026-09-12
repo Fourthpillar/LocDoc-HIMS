@@ -6,6 +6,12 @@ import lombok.*;
 /**
  * Pure counter table - no surrogate id / created_date, since it is
  * only ever read-locked and incremented by DocumentNumberService.
+ *
+ * Number series are per-facility, per-financial-year, gapless (Master Spec
+ * §6) - facilityId joined the composite key in V9 so two facilities never
+ * share a counter (and, not incidentally, two facilities' document numbers
+ * no longer collide now that PO/GRN/invoice numbers are unique per facility
+ * rather than globally - see the entities that generate them).
  */
 @Entity
 @Table(name = "document_sequences")
@@ -16,6 +22,10 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class DocumentSequence {
+
+    @Id
+    @Column(name = "facility_id", nullable = false)
+    private Long facilityId;
 
     @Id
     @Column(name = "doc_type", nullable = false, length = 30)

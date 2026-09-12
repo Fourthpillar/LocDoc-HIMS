@@ -1,14 +1,15 @@
 package com.lockdoc.app.controller;
 
+import com.lockdoc.app.config.AppUserPrincipal;
 import com.lockdoc.app.entity.User;
 import com.lockdoc.app.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -23,15 +24,17 @@ public class UserController {
     private final UserRepository userRepository;
 
     @GetMapping("/me")
-    public Map<String, Object> me(@AuthenticationPrincipal UserDetails userDetails) {
-        User user = userRepository.findByUsername(userDetails.getUsername())
+    public Map<String, Object> me(@AuthenticationPrincipal AppUserPrincipal principal) {
+        User user = userRepository.findById(principal.getUserId())
                 .orElseThrow();
 
-        return Map.of(
-                "username", user.getUsername(),
-                "email", user.getEmail() == null ? "" : user.getEmail(),
-                "fullName", user.getFullName() == null ? "" : user.getFullName(),
-                "roles", user.getRoles().stream().map(r -> r.getRoleCode()).toList()
-        );
+        Map<String, Object> response = new HashMap<>();
+        response.put("username", user.getUsername());
+        response.put("email", user.getEmail() == null ? "" : user.getEmail());
+        response.put("fullName", user.getFullName() == null ? "" : user.getFullName());
+        response.put("roles", user.getRoles().stream().map(r -> r.getRoleCode()).toList());
+        // null only for Super Admin - see AppUserPrincipal.
+        response.put("facilityId", principal.getFacilityId());
+        return response;
     }
 }

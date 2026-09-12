@@ -1,5 +1,6 @@
 package com.lockdoc.app.entity.pharmacy;
 
+import com.lockdoc.app.entity.Facility;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -22,7 +23,16 @@ public class SalesReturn {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "return_number", nullable = false, unique = true, length = 30)
+    // Denormalized from salesInvoice.facility (Master Spec §6 invariant 6:
+    // every tenant-scoped table carries facility_id directly, not only
+    // reachable via a parent join) - always set equal to the parent
+    // invoice's facility, never independently.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "facility_id", nullable = false)
+    private Facility facility;
+
+    // Was globally unique (see V3); now unique per facility - see V9.
+    @Column(name = "return_number", nullable = false, length = 30)
     private String returnNumber;
 
     @ManyToOne(fetch = FetchType.LAZY)

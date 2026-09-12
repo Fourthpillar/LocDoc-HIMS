@@ -1,15 +1,19 @@
 package com.lockdoc.app.service.pharmacy;
 
+import com.lockdoc.app.config.SecurityUtils;
 import com.lockdoc.app.dto.PageResponse;
 import com.lockdoc.app.dto.pharmacy.PurchaseOrderItemRequest;
 import com.lockdoc.app.dto.pharmacy.PurchaseOrderRequest;
 import com.lockdoc.app.dto.pharmacy.PurchaseOrderResponse;
+import com.lockdoc.app.entity.Facility;
+import com.lockdoc.app.entity.Store;
 import com.lockdoc.app.entity.pharmacy.Medicine;
 import com.lockdoc.app.entity.pharmacy.PurchaseOrder;
 import com.lockdoc.app.entity.pharmacy.PurchaseOrderItem;
 import com.lockdoc.app.entity.pharmacy.Supplier;
 import com.lockdoc.app.exception.InvalidDocumentStateException;
 import com.lockdoc.app.exception.ResourceNotFoundException;
+import com.lockdoc.app.repository.FacilityRepository;
 import com.lockdoc.app.repository.pharmacy.MedicineRepository;
 import com.lockdoc.app.repository.pharmacy.PurchaseOrderRepository;
 import com.lockdoc.app.repository.pharmacy.PurchaseRepository;
@@ -45,13 +49,16 @@ public class PurchaseOrderService {
     private final PurchaseRepository purchaseRepository;
     private final SupplierRepository supplierRepository;
     private final MedicineRepository medicineRepository;
+    private final FacilityRepository facilityRepository;
+    private final StoreResolutionService storeResolutionService;
     private final DocumentNumberService documentNumberService;
 
     public PageResponse<PurchaseOrderResponse> list(int page, int size, String search) {
+        Long facilityId = SecurityUtils.requireFacilityId();
         Pageable pageable = PageRequest.of(page, size);
         Page<PurchaseOrder> result = StringUtils.hasText(search)
-                ? purchaseOrderRepository.search(search, pageable)
-                : purchaseOrderRepository.findAll(pageable);
+                ? purchaseOrderRepository.search(facilityId, search, pageable)
+                : purchaseOrderRepository.findByFacilityId(facilityId, pageable);
         return PageResponse.of(result, PurchaseOrderResponse::toResponse);
     }
 
@@ -60,11 +67,21 @@ public class PurchaseOrderService {
     }
 
     public PurchaseOrderResponse create(PurchaseOrderRequest request, Long userId) {
-        Supplier supplier = supplierRepository.findById(request.getSupplierId())
+        Long facilityId = SecurityUtils.requireFacilityId();
+        Facility facility = facilityRepository.getReferenceById(facilityId);
+        Store store = storeResolutionService.resolveDefaultStore(facilityId);
+
+        Supplier supplier = supplierRepository.findByIdAndFacilityId(request.getSupplierId(), facilityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier not found with id: " + request.getSupplierId()));
+        if (!Boolean.TRUE.equals(supplier.getAccepted())) {
+            throw new InvalidDocumentStateException(
+                    "Supplier '" + supplier.getName() + "' has not yet been accepted by the Hospital/Clinic Admin - see Supplier Acceptance (Master Spec §12)");
+        }
 
         PurchaseOrder order = PurchaseOrder.builder()
-                .poNumber(documentNumberService.next(DOC_TYPE, PREFIX))
+                .facility(facility)
+                .store(store)
+                .poNumber(documentNumberService.next(facilityId, DOC_TYPE, PREFIX))
                 .supplier(supplier)
                 .orderDate(request.getOrderDate())
                 .expectedDeliveryDate(request.getExpectedDeliveryDate())
@@ -76,7 +93,7 @@ public class PurchaseOrderService {
 
         List<PurchaseOrderItem> items = new ArrayList<>();
         for (PurchaseOrderItemRequest itemRequest : request.getItems()) {
-            Medicine medicine = medicineRepository.findById(itemRequest.getMedicineId())
+            Medicine medicine = medicineRepository.findByIdAndFacilityId(itemRequest.getMedicineId(), facilityId)
                     .orElseThrow(() -> new ResourceNotFoundException("Medicine not found with id: " + itemRequest.getMedicineId()));
 
             BigDecimal taxPercent = itemRequest.getTaxPercent() != null ? itemRequest.getTaxPercent() : BigDecimal.ZERO;
@@ -115,7 +132,7 @@ public class PurchaseOrderService {
         if (!STATUS_DRAFT.equals(order.getStatus()) && !STATUS_APPROVED.equals(order.getStatus())) {
             throw new InvalidDocumentStateException("Purchase order cannot be cancelled from status: " + order.getStatus());
         }
-        if (purchaseRepository.existsByPurchaseOrderId(order.getId())) {
+        if (purchaseRepository.existsByFacilityIdAndPurchaseOrderId(order.getFacility().getId(), order.getId())) {
             throw new InvalidDocumentStateException("Purchase order cannot be cancelled - purchases already exist against it");
         }
         order.setStatus(STATUS_CANCELLED);
@@ -123,7 +140,8 @@ public class PurchaseOrderService {
     }
 
     private PurchaseOrder findEntity(Long id) {
-        return purchaseOrderRepository.findById(id)
+        Long facilityId = SecurityUtils.requireFacilityId();
+        return purchaseOrderRepository.findByIdAndFacilityId(id, facilityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Purchase order not found with id: " + id));
     }
 }

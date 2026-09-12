@@ -39,7 +39,14 @@ public class PurchaseResponse {
     private LocalDateTime createdDate;
     private LocalDateTime updatedDate;
 
+    /** Non-blocking - batches received within the near-expiry window (§11.3's "expiry guard"), informational only. */
+    private List<String> nearExpiryWarnings;
+
     public static PurchaseResponse toResponse(Purchase p) {
+        return toResponse(p, java.util.List.of());
+    }
+
+    public static PurchaseResponse toResponse(Purchase p, List<String> nearExpiryWarnings) {
         return PurchaseResponse.builder()
                 .id(p.getId())
                 .grnNumber(p.getGrnNumber())
@@ -60,6 +67,7 @@ public class PurchaseResponse {
                 .items(p.getItems().stream().map(PurchaseItemResponse::toResponse).toList())
                 .createdDate(p.getCreatedDate())
                 .updatedDate(p.getUpdatedDate())
+                .nearExpiryWarnings(nearExpiryWarnings)
                 .build();
     }
 }
