@@ -1,14 +1,18 @@
 package com.lockdoc.app.controller.op;
 
 import com.lockdoc.app.dto.PageResponse;
+import com.lockdoc.app.dto.op.PatientClinicalVisitResponse;
 import com.lockdoc.app.dto.pharmacy.PatientRequest;
 import com.lockdoc.app.dto.pharmacy.PatientResponse;
+import com.lockdoc.app.service.op.PatientClinicalHistoryService;
 import com.lockdoc.app.service.pharmacy.PatientService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * OP's own gated view of the shared Patient identity (Master Spec §6
@@ -26,6 +30,7 @@ import org.springframework.web.bind.annotation.*;
 public class OpPatientController {
 
     private final PatientService patientService;
+    private final PatientClinicalHistoryService clinicalHistoryService;
 
     @GetMapping
     public ResponseEntity<PageResponse<PatientResponse>> list(
@@ -38,6 +43,17 @@ public class OpPatientController {
     @GetMapping("/{id}")
     public ResponseEntity<PatientResponse> get(@PathVariable Long id) {
         return ResponseEntity.ok(patientService.get(id));
+    }
+
+    /**
+     * What each past consultation recorded - diagnosis, history, plan and the medicines
+     * prescribed. Its own right, because reading a clinical note is a different decision
+     * from editing a patient's name and address.
+     */
+    @GetMapping("/{id}/clinical-history")
+    @PreAuthorize("hasAuthority('PATIENT_CLINICAL_VIEW')")
+    public ResponseEntity<List<PatientClinicalVisitResponse>> clinicalHistory(@PathVariable Long id) {
+        return ResponseEntity.ok(clinicalHistoryService.forPatient(id));
     }
 
     @PostMapping

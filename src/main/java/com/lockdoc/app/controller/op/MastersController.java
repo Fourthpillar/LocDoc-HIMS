@@ -29,8 +29,15 @@ public class MastersController {
     private final BillableItemService billableItemService;
     private final PackageService packageService;
 
+    /*
+     * Reading these two is not the same decision as editing them. Reception has to attribute
+     * a visit to the doctor or PRO who referred it - that is what drives the commission
+     * report (7.5) - but only an admin curates the list. Gated on FACILITY_MASTERS_MANAGE
+     * alone, reception silently received an empty list and the referral fields never
+     * appeared, so no visit booked at the desk could ever carry a referral.
+     */
     @GetMapping("/referral-doctors")
-    @PreAuthorize("hasAuthority('FACILITY_MASTERS_MANAGE')")
+    @PreAuthorize("hasAnyAuthority('FACILITY_MASTERS_MANAGE', 'OP_VISIT_MANAGE')")
     public ResponseEntity<List<ReferralDoctorResponse>> listReferralDoctors() {
         return ResponseEntity.ok(mastersService.listReferralDoctors());
     }
@@ -55,7 +62,7 @@ public class MastersController {
     }
 
     @GetMapping("/pros")
-    @PreAuthorize("hasAuthority('FACILITY_MASTERS_MANAGE')")
+    @PreAuthorize("hasAnyAuthority('FACILITY_MASTERS_MANAGE', 'OP_VISIT_MANAGE')")
     public ResponseEntity<List<ProResponse>> listPros() {
         return ResponseEntity.ok(mastersService.listPros());
     }

@@ -5,6 +5,8 @@ import com.lockdoc.app.dto.op.ConsultationRatingRequest;
 import com.lockdoc.app.dto.op.ConsultationRatingResponse;
 import com.lockdoc.app.dto.op.OpVisitRequest;
 import com.lockdoc.app.dto.op.OpVisitResponse;
+import com.lockdoc.app.dto.doctor.OpCardResponse;
+import com.lockdoc.app.service.doctor.ConsultationRecordService;
 import com.lockdoc.app.service.op.OpVisitService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,7 @@ import java.util.List;
 public class OpVisitController {
 
     private final OpVisitService visitService;
+    private final ConsultationRecordService consultationRecordService;
 
     @PostMapping
     public ResponseEntity<OpVisitResponse> arrive(@Valid @RequestBody OpVisitRequest request) {
@@ -31,6 +34,19 @@ public class OpVisitController {
     @GetMapping("/{id}")
     public ResponseEntity<OpVisitResponse> get(@PathVariable Long id) {
         return ResponseEntity.ok(visitService.get(id));
+    }
+
+    /**
+     * The printed OP card for one visit (Master Spec 7.4/9).
+     *
+     * Reception is who hands this to the patient, and before the doctor writes anything it
+     * is the registration slip - name, UHID, OP number, doctor, registration and what was
+     * billed. The doctor-side endpoint resolves the visit by "is this yours", which no
+     * receptionist can satisfy; this one is scoped to the facility, like every other OP read.
+     */
+    @GetMapping("/{id}/op-card")
+    public ResponseEntity<OpCardResponse> opCard(@PathVariable Long id) {
+        return ResponseEntity.ok(consultationRecordService.opCardForFacility(id));
     }
 
     @GetMapping("/today")

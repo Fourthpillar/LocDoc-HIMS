@@ -89,7 +89,27 @@ public class ConsultationRecordService {
      * consultation happens; {@code isDraft} tells the frontend whether to watermark it.
      */
     public OpCardResponse opCard(Long opVisitId) {
-        OpVisit visit = ownedVisit(opVisitId);
+        return buildOpCard(ownedVisit(opVisitId));
+    }
+
+    /**
+     * The same printed card, for the front desk (Master Spec 7.4).
+     *
+     * Reception is who physically hands this over, and before the doctor has written
+     * anything it is the registration slip - the reason opCard was always callable on an
+     * unfinished visit. The doctor-scoped entry point above could not serve them: it
+     * resolves the visit by "is this yours", and a receptionist owns no visits. This one
+     * resolves it by facility instead, which is the scope every other OP read already uses.
+     */
+    public OpCardResponse opCardForFacility(Long opVisitId) {
+        Long facilityId = SecurityUtils.requireFacilityId();
+        OpVisit visit = opVisitRepository.findByIdAndFacilityId(opVisitId, facilityId)
+                .orElseThrow(() -> new ResourceNotFoundException("OP visit not found with id: " + opVisitId));
+        return buildOpCard(visit);
+    }
+
+    private OpCardResponse buildOpCard(OpVisit visit) {
+        Long opVisitId = visit.getId();
         Patient patient = visit.getPatient();
 
         PatientRegistration registration = registrationRepository

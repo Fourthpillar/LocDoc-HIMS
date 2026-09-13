@@ -130,6 +130,25 @@ public class AppointmentService {
         return AppointmentResponse.toResponse(appointmentRepository.save(appointment));
     }
 
+    /**
+     * Appointments across a date range (Master Spec 7.3).
+     *
+     * The screen could only ever ask for today, which made every booking for tomorrow
+     * invisible the moment it was made - the desk could create a slot it then had no way
+     * to look at, reschedule or cancel until the day arrived. Both bounds are inclusive.
+     */
+    public List<AppointmentResponse> listForFacilityBetween(LocalDate from, LocalDate to) {
+        Long facilityId = SecurityUtils.requireFacilityId();
+        LocalDate start = from == null ? LocalDate.now() : from;
+        LocalDate end = to == null ? start : to;
+        if (end.isBefore(start)) {
+            throw new IllegalArgumentException("'to' cannot be before 'from'");
+        }
+        return appointmentRepository
+                .findByFacilityIdAndAppointmentTsBetweenOrderByAppointmentTsAsc(facilityId, start.atStartOfDay(), end.plusDays(1).atStartOfDay())
+                .stream().map(AppointmentResponse::toResponse).toList();
+    }
+
     public List<AppointmentResponse> listForFacilityToday() {
         Long facilityId = SecurityUtils.requireFacilityId();
         LocalDate today = LocalDate.now();

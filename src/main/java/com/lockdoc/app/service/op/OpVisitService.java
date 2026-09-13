@@ -226,7 +226,17 @@ public class OpVisitService {
         Optional<OpVisit> anchor = findFreeReviewAnchor(patientId, doctorId, null, facilityId, at);
         if (anchor.isPresent()) {
             free = true;
-            consultationNote = "Free review against the visit on " + anchor.get().getArrivedTs().toLocalDate() + " - no consultation fee";
+            // 7.4 wants the resolution spelled out, not just the word "free": which review
+            // this is, out of how many the doctor allows, and against which paid visit.
+            // "Free review" alone leaves the desk unable to answer "so is the next one free too?".
+            OpVisit anchorVisit = anchor.get();
+            long alreadyUsed = freeReviewLinkRepository.findByOriginalOpVisitIdOrderByCreatedDateAsc(anchorVisit.getId()).size();
+            Integer allowed = freeReviewPolicyRepository.findByDoctorIdAndFacilityId(doctorId, facilityId)
+                    .map(FreeReviewPolicy::getMaxVisits)
+                    .orElse(null);
+            consultationNote = "Free review - " + ordinal(alreadyUsed + 1)
+                    + (allowed != null ? " of " + allowed : "")
+                    + ", against " + anchorVisit.getOpNo() + " on " + anchorVisit.getArrivedTs().toLocalDate();
         } else {
             String dayNight = at.toLocalTime().isBefore(LocalTime.of(20, 0)) && !at.toLocalTime().isBefore(LocalTime.of(6, 0))
                     ? ConsultationRate.DAY : ConsultationRate.NIGHT;
@@ -415,6 +425,18 @@ public class OpVisitService {
         Long facilityId = SecurityUtils.requireFacilityId();
         return visitRepository.findByPatientIdAndFacilityIdOrderByArrivedTsDesc(patientId, facilityId)
                 .stream().map(OpVisitResponse::toResponse).toList();
+    }
+
+    /** 1st / 2nd / 3rd / 4th - small enough to spell out inline rather than pull in a library. */
+    private static String ordinal(long n) {
+        long mod100 = n % 100;
+        if (mod100 >= 11 && mod100 <= 13) return n + "th";
+        return switch ((int) (n % 10)) {
+            case 1 -> n + "st";
+            case 2 -> n + "nd";
+            case 3 -> n + "rd";
+            default -> n + "th";
+        };
     }
 
     private OpVisit findEntity(Long id) {

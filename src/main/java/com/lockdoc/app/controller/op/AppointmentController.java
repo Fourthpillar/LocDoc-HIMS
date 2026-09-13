@@ -31,6 +31,14 @@ public class AppointmentController {
         return ResponseEntity.ok(appointmentService.reschedule(id, request));
     }
 
+    /** Any date range, so a booking made for next week is visible before it arrives. */
+    @GetMapping
+    public ResponseEntity<List<AppointmentResponse>> listForFacilityBetween(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return ResponseEntity.ok(appointmentService.listForFacilityBetween(from, to));
+    }
+
     @GetMapping("/today")
     public ResponseEntity<List<AppointmentResponse>> listForFacilityToday() {
         return ResponseEntity.ok(appointmentService.listForFacilityToday());
