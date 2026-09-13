@@ -4,15 +4,24 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
-### Added
-- `V7` migration: supplier master-data columns (`mobile2`, `landline`, `city`, `state`, `pincode`, `tin_no`, `website`, `supplier_type`, `drug_license_no`); `purchases` payables tracking (`amount_paid`, `balance_due`, `due_date`), mirroring the pattern already used on `sales_invoices`; `sales_invoices.round_off_amount` to make the cash-rounding adjustment explicit instead of silently folding it into `balance_due`.
-- New pharmacy report endpoints under `/pharmacy/reports`: `purchase-orders` (date-range PO report), `purchase-dues` (GRN payables aging - GRNs with an outstanding balance, oldest due date first), `medicine-sales` (medicine-wise sales for a date range, net of returns), `stock-detail` (batch-level stock valuation: qty × purchase rate / MRP, with category/manufacturer/supplier).
-- `PurchaseService.create()` now accepts an optional `amountPaid`/`dueDate` on the GRN and computes `balanceDue`; `SalesService.create()` now computes `roundOffAmount` (rounding the payable amount to the nearest rupee) and derives `balanceDue` from the rounded payable amount rather than the unrounded total, so partial/rounded payments are tracked accurately instead of always showing zero due.
+### Changed
+- Split the single Gradle project into a multi-project build: `common`, `outpatient` and `doctor` modules (each with its own Java code and Flyway scripts), assembled by a new `app` module that owns `LockDocApplication`, `application.properties`, logging config and the integration tests. Packages moved from `com.lockdoc.app.*` to `com.lockdoc.common.*`, `com.lockdoc.outpatient.*` and `com.lockdoc.doctor.*`. The jar is now built at `app/build/libs/lockdoc-app.jar`; `./gradlew bootRun` still runs from the repository root, so `./data` and `./logs` are unchanged.
+- `ConsultationRate`, `FreeReviewPolicy`, `DoctorFacilityMapping(+Hour)` now live in `common` (outpatient billing/scheduling reads them), and `FreeReviewLink` in `outpatient`, so that `outpatient` does not depend on `doctor`. `DoctorScheduleController`, `DoctorConsultationHoursController` and `FacilityScheduleExceptionController` moved to `doctor` (URLs unchanged).
+- **Flyway history reset.** The 54 incremental migrations (`V1`-`V54`) are replaced by one DDL and one DML script per module, named for what they do: `V1001__create_user_facility_doctor_and_platform_tables` / `V1002__insert_roles_rights_and_bootstrap_users` (common), `V2001__create_patient_visit_appointment_and_billing_tables` / `V2002__insert_receptionist_role_and_outpatient_rights` (outpatient), `V3001__create_doctor_status_consultation_and_schedule_tables` / `V3002__insert_doctor_rights` (doctor). The resulting schema and seed data are identical to the old `V54` end state minus everything pharmacy (verified by diffing `INFORMATION_SCHEMA` columns, constraints and indexes, plus rights/roles/mappings). `spring.flyway.out-of-order` is now `true` so later per-module versions (e.g. `V1003`) can apply after `V3002`. **Existing H2 files (`data/lockdocdb*.mv.db`) must be deleted and recreated** — their `flyway_schema_history` no longer matches.
+- The bootstrap facility is now `Default Facility (bootstrap)`, type `HOSPITAL`, with modules `OP` and `DOCTOR` (was type/module `PHARMACY`).
+- `PATCH /op/patients/{id}/deactivate` added (previously only reachable via the removed `/pharmacy/patients`).
+
+### Removed
+- The pharmacy module: all `/pharmacy/**` controllers, services, repositories, entities and DTOs, plus `Store`, `InsufficientStockException` and `SafetyCheckException`.
+- All pharmacy tables (medicines, batches, suppliers, purchase orders, GRNs, sales, returns, stock ledger, indents, transfers, stock counts, statutory register, stores, user store scope), the 18 `PHARMACY_*` rights, the `PHARMACIST` role, and `prescription_lines.matched_pharmacy_medicine_id`.
+- `GET /op/reports/pharmacy-conversion` and `GET /doctor/consultations/{opVisitId}/medicine-lookup`.
+- `PrescriptionLineRequest/Response.matchedPharmacyMedicineId`, `PrescriptionLineResponse.stockStatus`/`availableQty`, and `pharmacyMatchedLines` on the medicines-prescribed report.
+- Pharmacy constants and behaviour: `Facility.TYPE_PHARMACY`, `CounterSession.TYPE_PHARMACY` (counter sessions accept `OP` only), `CommissionBasis.PARTY_PRESCRIBING_DOCTOR`, Pharmacist accounts in Manage Users, and the pharmacy-sales check on erasure requests.
+- Pharmacy reference PDFs under `temp/`; `matched_pharmacy_medicine_id` from the `dev-data/doctor-reports` generator and seed.
 
 ### Fixed
 
 - Unknown URLs and wrong HTTP methods no longer return `500`. `GlobalExceptionHandler` had only a catch-all `@ExceptionHandler(Exception.class)`, which swallowed Spring's `NoResourceFoundException` (thrown by the static-resource handler that Boot 3.2+ maps at `/**` for any request matching no `@RequestMapping`) and `HttpRequestMethodNotSupportedException` — so every typo'd or stale path answered `500 "An unexpected error occurred"`, and every wrong verb did too. Explicit handlers now return `404` and `405` respectively in the same `{error, message, timestamp, status}` body shape as the other handlers, with the `Allow` header on a `405`; they log at DEBUG instead of an ERROR stack trace, so URL scans no longer flood the log. A `NoHandlerFoundException` handler is included for the case where static-resource mappings are ever disabled. The catch-all is unchanged and still covers genuine failures. Covered by `UnknownEndpointErrorTest`.
-- `V8` migration: corrects medicine category typos transcribed verbatim from the source legacy report into the `V5` seed data (`OINTEMENT`→`OINTMENT`, `SWEB`→`SWAB`, bandage/dressing items miscategorized under the needle-gauge category `GAUGE`→`GAUZE`), and fixes the same typo in a medicine name (`STERILE GAUGE SWAB`→`STERILE GAUZE SWAB`).
 
 ## [1.2.0] - Pharmacy module
 

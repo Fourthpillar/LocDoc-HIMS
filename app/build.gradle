@@ -1,0 +1,31 @@
+plugins {
+    id 'org.springframework.boot'
+}
+
+description = 'LockDoc Spring Boot application - assembles the common, outpatient and doctor modules into one bootable jar'
+
+dependencies {
+    implementation project(':common')
+    implementation project(':outpatient')
+    implementation project(':doctor')
+
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // H2 file-based database
+    runtimeOnly 'com.h2database:h2'
+
+    testImplementation 'org.springframework.security:spring-security-test'
+}
+
+// Run from the repository root so ./data and ./logs stay where they always were
+tasks.named('bootRun') {
+    workingDir = rootProject.projectDir
+}
+
+tasks.named('test') {
+    workingDir = rootProject.projectDir
+}
+
+bootJar {
+    archiveFileName = 'lockdoc-app.jar'
+}

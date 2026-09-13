@@ -1,0 +1,5 @@
+description = 'LockDoc doctor module - doctor profile, facility mappings, availability/schedules, consultation records, prescriptions, doctor reports'
+
+dependencies {
+    api project(':outpatient')
+}

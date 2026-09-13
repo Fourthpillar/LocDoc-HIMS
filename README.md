@@ -8,7 +8,8 @@ A Spring Boot 3 REST API backend with:
 - **User / Role / Right** model with a default super-admin user (`FP_USER`)
 - **Spring Boot Actuator** health check
 - **Size-based rolling file logs** via Logback
-- **Flyway** versioned SQL migration scripts (`src/main/resources/db/scripts`)
+- **Flyway** versioned SQL migration scripts, owned by each module (`<module>/src/main/resources/db/scripts/<module>`)
+- **Multi-project Gradle build**: `common`, `outpatient`, `doctor` modules assembled by a bootable `app` module
 - Application context path: `/lockdoc`, port: `7321`
 
 ---
@@ -25,18 +26,18 @@ A Spring Boot 3 REST API backend with:
 ## 2. Running the application
 
 ```bash
-gradle bootRun
+./gradlew bootRun        # runs :app:bootRun from the repository root
 ```
 
 or build a jar and run it:
 
 ```bash
-gradle clean build
-java -jar build/libs/lockdoc-app.jar
+./gradlew clean build
+java -jar app/build/libs/lockdoc-app.jar
 ```
 
 On first startup:
-- Flyway runs the versioned scripts in `src/main/resources/db/scripts` (one script creates the tables, one seeds default data), creating the schema and default records.
+- Flyway runs the versioned scripts from all three modules (`db/scripts/common`, `db/scripts/outpatient`, `db/scripts/doctor` on the classpath), creating the schema and default records.
 - The H2 database file is created at `./data/lockdocdb.mv.db` (relative to the working directory).
 - Logs are written to `./logs/lockdoc-app.log`.
 
@@ -95,14 +96,21 @@ This path is included in the JWT excluded-urls list so monitoring tools can call
 
 ### DB versioned scripts
 
-Every DDL/DML change lives in `src/main/resources/db/scripts` as a Flyway-versioned SQL file:
+Each module owns one DDL and one DML Flyway script, in its own version range:
 
 ```
-V1__create_tables.sql        -- users, roles, rights + join tables (all DDL)
-V2__seed_default_data.sql    -- default rights, SUPER_ADMIN role, FP_USER
+common/src/main/resources/db/scripts/common/
+    V1001__create_user_facility_doctor_and_platform_tables.sql
+    V1002__insert_roles_rights_and_bootstrap_users.sql
+outpatient/src/main/resources/db/scripts/outpatient/
+    V2001__create_patient_visit_appointment_and_billing_tables.sql
+    V2002__insert_receptionist_role_and_outpatient_rights.sql
+doctor/src/main/resources/db/scripts/doctor/
+    V3001__create_doctor_status_consultation_and_schedule_tables.sql
+    V3002__insert_doctor_rights.sql
 ```
 
-Flyway applies these automatically on startup, in order, and tracks the applied version in the `flyway_schema_history` table. **Never edit an already-applied script** — add a new `V{n}__description.sql` file instead. See [CLAUDE.md](CLAUDE.md) for the convention.
+Flyway applies these automatically on startup, in version order (common, then outpatient, then doctor), and tracks the applied versions in the `flyway_schema_history` table. **Never edit an already-applied script** — add the next version in the owning module's range instead (e.g. `V1003__add_user_last_login_column.sql` for common) - name it for what it does. See [CLAUDE.md](CLAUDE.md) for the convention.
 
 ## 7. CORS
 
@@ -116,7 +124,7 @@ app.cors.allowed-origins[2]=http://localhost:5176
 
 ## 8. Logging
 
-Logback is configured (`src/main/resources/logback-spring.xml`) with **size-based rollover**:
+Logback is configured (`app/src/main/resources/logback-spring.xml`) with **size-based rollover**:
 
 - Active log: `logs/lockdoc-app.log`
 - Rolls over once it reaches **10 MB**
@@ -127,31 +135,20 @@ Logback is configured (`src/main/resources/logback-spring.xml`) with **size-base
 
 ```
 lockdoc-app/
-├── build.gradle
-├── settings.gradle
-├── gradle.properties
-├── README.md
-├── CLAUDE.md
-├── API.md
-├── CHANGELOG.md
-├── .gitignore
-└── src/
-    ├── main/
-    │   ├── java/com/lockdoc/app/
-    │   │   ├── LockDocApplication.java
-    │   │   ├── config/          # security, JWT, CORS configuration
-    │   │   ├── entity/          # User, Role, Right JPA entities
-    │   │   ├── repository/      # Spring Data repositories
-    │   │   ├── service/         # business + auth logic
-    │   │   ├── controller/      # REST controllers
-    │   │   └── exception/       # global exception handling
-    │   └── resources/
-    │       ├── application.properties
-    │       ├── logback-spring.xml
-    │       └── db/scripts/      # versioned Flyway DDL/DML scripts (V1 tables, V2 seed data)
-    └── test/
-        └── java/com/lockdoc/app/
+├── build.gradle            # shared config for all subprojects (Java 17, Spring Boot BOM, Lombok)
+├── settings.gradle         # includes common, outpatient, doctor, app
+├── common/                 # com.lockdoc.common.*  - security/JWT, users/roles/rights, facilities,
+│                           #   doctors + doctor-facility mappings/rates/free-review policies,
+│                           #   document numbering, platform (audit log, support tickets), exceptions
+├── outpatient/             # com.lockdoc.outpatient.* - patients, registration, OP visits, appointments,
+│                           #   billing, packages, masters, OP/facility reports, data protection
+├── doctor/                 # com.lockdoc.doctor.* - doctor profile, availability/schedules,
+│                           #   consultation records, prescriptions, doctor reports
+└── app/                    # com.lockdoc.app - LockDocApplication, application.properties,
+                            #   logback-spring.xml, integration tests; builds lockdoc-app.jar
 ```
+
+Module dependencies are one-way: `common` ← `outpatient` ← `doctor` ← `app`.
 
 ## 10. Configuration reference
 
@@ -168,7 +165,7 @@ lockdoc-app/
 ## 11. Running tests
 
 ```bash
-gradle test
+./gradlew test
 ```
 
 ## 12. Building for production

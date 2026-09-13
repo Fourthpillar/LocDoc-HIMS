@@ -12,7 +12,7 @@
 //   Punctuality  - weekly sessions, per-day status updates (on time / late / none), a holiday, a leave day and a
 //                  cancelled session; ratings of the range's consultations
 //   Consultation - completed OP visits with consultation notes, consultation bills (+ payments), ratings
-//   Medicines    - completed prescriptions with realistic lines, about half matched to the pharmacy catalogue
+//   Medicines    - completed prescriptions with realistic lines
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -142,8 +142,8 @@ const patients = Array.from({ length: 72 }, (_, i) => {
 
 // ----------------------------------------------------------------- clinical profiles
 
-const med = (name, matchId, generic, strength, dosage, route, frequency, duration, quantity) => ({
-  name, matchId, generic, strength, dosage, route, frequency: frequency === 'TID' && chance(0.12) ? 'TDS' : frequency, duration, quantity,
+const med = (name, generic, strength, dosage, route, frequency, duration, quantity) => ({
+  name, generic, strength, dosage, route, frequency: frequency === 'TID' && chance(0.12) ? 'TDS' : frequency, duration, quantity,
 });
 
 const PROFILES = {
@@ -155,12 +155,12 @@ const PROFILES = {
     followUp: 'Review if fever persists beyond 3 days',
     lines: (child) => [
       child
-        ? med('DOLO 120 SYP', 55, 'Paracetamol', '120mg/5ml', '5 ml', 'Oral', 'TID', '3 days', 1)
+        ? med('DOLO 120 SYP', 'Paracetamol', '120mg/5ml', '5 ml', 'Oral', 'TID', '3 days', 1)
         : chance(0.6)
-          ? med('DOLO 650', 56, 'Paracetamol', '650mg', '1 tab', 'Oral', 'TID', '3 days', 9)
-          : med('Paracetamol', null, 'Paracetamol', '500mg', '1 tab', 'Oral', 'TID', '3 days', 9),
-      chance(0.7) && (child ? med('SINAREST AF', 165, 'Paracetamol + Phenylephrine + Chlorpheniramine', null, '5 ml', 'Oral', 'BD', '5 days', 1) : med('Cetirizine', null, 'Cetirizine', '10mg', '1 tab', 'Oral', 'OD', '5 days', 5)),
-      chance(0.3) && med('LIMCEE', 104, 'Vitamin C', '500mg', child ? '1/2 tab' : '1 tab', 'Oral', 'OD', '10 days', child ? 5 : 10),
+          ? med('DOLO 650', 'Paracetamol', '650mg', '1 tab', 'Oral', 'TID', '3 days', 9)
+          : med('Paracetamol', 'Paracetamol', '500mg', '1 tab', 'Oral', 'TID', '3 days', 9),
+      chance(0.7) && (child ? med('SINAREST AF', 'Paracetamol + Phenylephrine + Chlorpheniramine', null, '5 ml', 'Oral', 'BD', '5 days', 1) : med('Cetirizine', 'Cetirizine', '10mg', '1 tab', 'Oral', 'OD', '5 days', 5)),
+      chance(0.3) && med('LIMCEE', 'Vitamin C', '500mg', child ? '1/2 tab' : '1 tab', 'Oral', 'OD', '10 days', child ? 5 : 10),
     ],
   },
   THROAT: {
@@ -171,12 +171,12 @@ const PROFILES = {
     followUp: 'Review after 5 days',
     lines: (child) => [
       child
-        ? med('Azithromycin syrup', null, 'Azithromycin', '200mg/5ml', '5 ml', 'Oral', 'OD', '3 days', 1)
+        ? med('Azithromycin syrup', 'Azithromycin', '200mg/5ml', '5 ml', 'Oral', 'OD', '3 days', 1)
         : chance(0.65)
-          ? med('AZEE 500 TAB', 17, 'Azithromycin', '500mg', '1 tab', 'Oral', 'OD', '3 days', 3)
-          : med('AUGMENTIN 625 DUO', 16, 'Amoxicillin + Clavulanate', '625mg', '1 tab', 'Oral', 'BD', '5 days', 10),
-      child ? med('DOLO 120 SYP', 55, 'Paracetamol', '120mg/5ml', '5 ml', 'Oral', 'SOS', '3 days', 1) : med('DOLO 650', 56, 'Paracetamol', '650mg', '1 tab', 'Oral', 'SOS', '3 days', 6),
-      !child && chance(0.5) && med('Betadine gargle', null, 'Povidone iodine', '2%', '10 ml', 'Gargle', 'TID', '5 days', 1),
+          ? med('AZEE 500 TAB', 'Azithromycin', '500mg', '1 tab', 'Oral', 'OD', '3 days', 3)
+          : med('AUGMENTIN 625 DUO', 'Amoxicillin + Clavulanate', '625mg', '1 tab', 'Oral', 'BD', '5 days', 10),
+      child ? med('DOLO 120 SYP', 'Paracetamol', '120mg/5ml', '5 ml', 'Oral', 'SOS', '3 days', 1) : med('DOLO 650', 'Paracetamol', '650mg', '1 tab', 'Oral', 'SOS', '3 days', 6),
+      !child && chance(0.5) && med('Betadine gargle', 'Povidone iodine', '2%', '10 ml', 'Gargle', 'TID', '5 days', 1),
     ],
   },
   GASTRO: {
@@ -186,10 +186,10 @@ const PROFILES = {
     plan: 'Oral rehydration, bland diet, avoid outside food',
     followUp: 'Review if stools are bloody or vomiting persists',
     lines: (child) => [
-      med('ORS sachet', null, 'Oral rehydration salts', null, '1 sachet in 1 L water', 'Oral', 'After each loose stool', '3 days', 6),
-      child ? med('ENTEROGERMINA', 68, 'Bacillus clausii', '2 billion', '5 ml', 'Oral', 'BD', '5 days', 10) : med('PAN L', 143, 'Pantoprazole + Levosulpiride', '40mg', '1 cap', 'Oral', 'OD before breakfast', '5 days', 5),
-      child ? chance(0.6) && med('Zinc syrup', null, 'Zinc sulphate', '20mg/5ml', '5 ml', 'Oral', 'OD', '14 days', 1) : chance(0.4) && med('METROGYL 400MG', 116, 'Metronidazole', '400mg', '1 tab', 'Oral', 'TID', '5 days', 15),
-      child ? chance(0.4) && med('CYCLOPAM', 44, 'Dicyclomine + Simethicone', null, '5 ml', 'Oral', 'SOS', '3 days', 1) : chance(0.4) && med('Ondansetron', null, 'Ondansetron', '4mg', '1 tab', 'Oral', 'SOS', '2 days', 4),
+      med('ORS sachet', 'Oral rehydration salts', null, '1 sachet in 1 L water', 'Oral', 'After each loose stool', '3 days', 6),
+      child ? med('ENTEROGERMINA', 'Bacillus clausii', '2 billion', '5 ml', 'Oral', 'BD', '5 days', 10) : med('PAN L', 'Pantoprazole + Levosulpiride', '40mg', '1 cap', 'Oral', 'OD before breakfast', '5 days', 5),
+      child ? chance(0.6) && med('Zinc syrup', 'Zinc sulphate', '20mg/5ml', '5 ml', 'Oral', 'OD', '14 days', 1) : chance(0.4) && med('METROGYL 400MG', 'Metronidazole', '400mg', '1 tab', 'Oral', 'TID', '5 days', 15),
+      child ? chance(0.4) && med('CYCLOPAM', 'Dicyclomine + Simethicone', null, '5 ml', 'Oral', 'SOS', '3 days', 1) : chance(0.4) && med('Ondansetron', 'Ondansetron', '4mg', '1 tab', 'Oral', 'SOS', '2 days', 4),
     ],
   },
   PAIN: {
@@ -199,10 +199,10 @@ const PROFILES = {
     plan: 'Analgesics, posture correction, physiotherapy exercises',
     followUp: 'Review after 2 weeks',
     lines: () => [
-      chance(0.7) ? med('ZERODOL', 219, 'Aceclofenac', '100mg', '1 tab', 'Oral', 'BD', '5 days', 10) : med('IBUGESIC PLUS', 90, 'Ibuprofen + Paracetamol', '400/325mg', '1 tab', 'Oral', 'TID', '3 days', 9),
-      chance(0.8) && med('PAN L', 143, 'Pantoprazole + Levosulpiride', '40mg', '1 cap', 'Oral', 'OD before breakfast', '5 days', 5),
-      chance(0.4) && med('CALCIGEN D3', 27, 'Calcium + Vitamin D3', null, '1 cap', 'Oral', 'OD', '30 days', 30),
-      chance(0.35) && med('Diclofenac gel', null, 'Diclofenac', '1%', 'Apply locally', 'Topical', 'TID', '7 days', 1),
+      chance(0.7) ? med('ZERODOL', 'Aceclofenac', '100mg', '1 tab', 'Oral', 'BD', '5 days', 10) : med('IBUGESIC PLUS', 'Ibuprofen + Paracetamol', '400/325mg', '1 tab', 'Oral', 'TID', '3 days', 9),
+      chance(0.8) && med('PAN L', 'Pantoprazole + Levosulpiride', '40mg', '1 cap', 'Oral', 'OD before breakfast', '5 days', 5),
+      chance(0.4) && med('CALCIGEN D3', 'Calcium + Vitamin D3', null, '1 cap', 'Oral', 'OD', '30 days', 30),
+      chance(0.35) && med('Diclofenac gel', 'Diclofenac', '1%', 'Apply locally', 'Topical', 'TID', '7 days', 1),
     ],
   },
   HTN: {
@@ -212,9 +212,9 @@ const PROFILES = {
     plan: 'Continue medicines, low-salt diet, 30 minutes walk daily',
     followUp: 'Review after 1 month with lipid profile',
     lines: () => [
-      med('TELMIKIND 40', 186, 'Telmisartan', '40mg', '1 tab', 'Oral', 'OD', '30 days', 30),
-      chance(0.5) && med('AMLOKIND 5', 6, 'Amlodipine', '5mg', '1 tab', 'Oral', 'OD', '30 days', 30),
-      chance(0.45) && med('ATORVA 10MG', 15, 'Atorvastatin', '10mg', '1 tab', 'Oral', 'OD at night', '30 days', 30),
+      med('TELMIKIND 40', 'Telmisartan', '40mg', '1 tab', 'Oral', 'OD', '30 days', 30),
+      chance(0.5) && med('AMLOKIND 5', 'Amlodipine', '5mg', '1 tab', 'Oral', 'OD', '30 days', 30),
+      chance(0.45) && med('ATORVA 10MG', 'Atorvastatin', '10mg', '1 tab', 'Oral', 'OD at night', '30 days', 30),
     ],
   },
   ASTHMA: {
@@ -224,9 +224,9 @@ const PROFILES = {
     plan: 'Inhaler technique demonstrated, avoid dust and cold drinks',
     followUp: 'Review after 2 weeks',
     lines: (child) => [
-      med('Salbutamol inhaler', null, 'Salbutamol', '100mcg', '2 puffs', 'Inhalation', 'SOS', '30 days', 1),
-      child ? med('LEVOCET M KID TAB', 103, 'Levocetirizine + Montelukast', '2.5/4mg', '1 tab', 'Oral', 'OD at night', '14 days', 14) : med('Montelukast', null, 'Montelukast', '10mg', '1 tab', 'Oral', 'OD at night', '14 days', 14),
-      chance(0.4) && med('WYSOLONE 10MG', 215, 'Prednisolone', '10mg', '1 tab', 'Oral', 'OD', '5 days', 5),
+      med('Salbutamol inhaler', 'Salbutamol', '100mcg', '2 puffs', 'Inhalation', 'SOS', '30 days', 1),
+      child ? med('LEVOCET M KID TAB', 'Levocetirizine + Montelukast', '2.5/4mg', '1 tab', 'Oral', 'OD at night', '14 days', 14) : med('Montelukast', 'Montelukast', '10mg', '1 tab', 'Oral', 'OD at night', '14 days', 14),
+      chance(0.4) && med('WYSOLONE 10MG', 'Prednisolone', '10mg', '1 tab', 'Oral', 'OD', '5 days', 5),
     ],
   },
   NUTRITION: {
@@ -236,11 +236,11 @@ const PROFILES = {
     plan: 'Iron-rich diet, supplements, CBC after 1 month',
     followUp: 'Review after 1 month with CBC',
     lines: (child) => [
-      med('FOLVITE', 77, 'Folic acid', '5mg', '1 tab', 'Oral', 'OD', '30 days', 30),
-      chance(0.6) && med('ZINCOVIT', 222, 'Multivitamin + Zinc', null, '1 tab', 'Oral', 'OD', '30 days', 30),
+      med('FOLVITE', 'Folic acid', '5mg', '1 tab', 'Oral', 'OD', '30 days', 30),
+      chance(0.6) && med('ZINCOVIT', 'Multivitamin + Zinc', null, '1 tab', 'Oral', 'OD', '30 days', 30),
       child
-        ? med('Ferrous ascorbate syrup', null, 'Ferrous ascorbate + Folic acid', '30mg/5ml', '5 ml', 'Oral', 'OD', '30 days', 1)
-        : chance(0.5) && med('Vitamin D3 60K', null, 'Cholecalciferol', '60000 IU', '1 sachet', 'Oral', 'Once weekly', '8 weeks', 8),
+        ? med('Ferrous ascorbate syrup', 'Ferrous ascorbate + Folic acid', '30mg/5ml', '5 ml', 'Oral', 'OD', '30 days', 1)
+        : chance(0.5) && med('Vitamin D3 60K', 'Cholecalciferol', '60000 IU', '1 sachet', 'Oral', 'Once weekly', '8 weeks', 8),
     ],
   },
   SKIN: {
@@ -250,9 +250,9 @@ const PROFILES = {
     plan: 'Keep the area clean and dry, avoid scratching',
     followUp: 'Review after 1 week',
     lines: (child) => [
-      chance(0.6) ? med('BETADINE OINTMENT', 23, 'Povidone iodine', '5%', 'Apply locally', 'Topical', 'BD', '7 days', 1) : med('Fusidic acid cream', null, 'Fusidic acid', '2%', 'Apply locally', 'Topical', 'TID', '7 days', 1),
-      chance(0.6) && (child ? med('Cetirizine syrup', null, 'Cetirizine', '5mg/5ml', '5 ml', 'Oral', 'OD', '5 days', 1) : med('Cetirizine', null, 'Cetirizine', '10mg', '1 tab', 'Oral', 'OD', '5 days', 5)),
-      !child && chance(0.3) && med('TAXIM-O 200', 182, 'Cefixime', '200mg', '1 tab', 'Oral', 'BD', '5 days', 10),
+      chance(0.6) ? med('BETADINE OINTMENT', 'Povidone iodine', '5%', 'Apply locally', 'Topical', 'BD', '7 days', 1) : med('Fusidic acid cream', 'Fusidic acid', '2%', 'Apply locally', 'Topical', 'TID', '7 days', 1),
+      chance(0.6) && (child ? med('Cetirizine syrup', 'Cetirizine', '5mg/5ml', '5 ml', 'Oral', 'OD', '5 days', 1) : med('Cetirizine', 'Cetirizine', '10mg', '1 tab', 'Oral', 'OD', '5 days', 5)),
+      !child && chance(0.3) && med('TAXIM-O 200', 'Cefixime', '200mg', '1 tab', 'Oral', 'BD', '5 days', 10),
     ],
   },
 };
@@ -373,7 +373,7 @@ for (const p of seenPatients) {
   );
 }
 
-const counts = { visits: 0, notes: 0, prescriptions: 0, lines: 0, matchedLines: 0, bills: 0, payments: 0, ratings: 0 };
+const counts = { visits: 0, notes: 0, prescriptions: 0, lines: 0, bills: 0, payments: 0, ratings: 0 };
 visits.forEach((v, i) => {
   const opNo = `OP-SEED-${pad(i + 1, 5)}`;
   const billNo = `BILL-SEED-${pad(i + 1, 5)}`;
@@ -421,10 +421,9 @@ visits.forEach((v, i) => {
     counts.prescriptions++;
     lines.forEach((l, order) => {
       emit(
-        `INSERT INTO prescription_lines (prescription_id, line_order, medicine_name, generic_name, strength, dosage, route, frequency, duration, quantity, refill_flag, matched_pharmacy_medicine_id) VALUES ((SELECT id FROM prescriptions WHERE op_visit_id = ${opVisitId(opNo)}), ${order}, ${sql(l.name)}, ${sql(l.generic)}, ${sql(l.strength)}, ${sql(l.dosage)}, ${sql(l.route)}, ${sql(l.frequency)}, ${sql(l.duration)}, ${l.quantity}, FALSE, ${l.matchId ?? 'NULL'});`
+        `INSERT INTO prescription_lines (prescription_id, line_order, medicine_name, generic_name, strength, dosage, route, frequency, duration, quantity, refill_flag) VALUES ((SELECT id FROM prescriptions WHERE op_visit_id = ${opVisitId(opNo)}), ${order}, ${sql(l.name)}, ${sql(l.generic)}, ${sql(l.strength)}, ${sql(l.dosage)}, ${sql(l.route)}, ${sql(l.frequency)}, ${sql(l.duration)}, ${l.quantity}, FALSE);`
       );
       counts.lines++;
-      if (l.matchId) counts.matchedLines++;
     });
   }
 
